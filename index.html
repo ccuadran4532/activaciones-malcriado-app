@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Activaciones Malcriado">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Activaciones Malcriado</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ====== LOGIN ====== -->
+<div class="pantalla" id="vistaLogin">
+  <div class="login-wrap">
+    <img class="login-logo" src="icons/icon-512.png" alt="Malcriado">
+    <div class="login-card">
+      <h2>Activaciones Malcriado</h2>
+      <p>The Branican Company</p>
+      <div class="campo"><label>Email</label>
+        <input type="email" id="loginEmail" placeholder="tu@correo.com" autocomplete="username"></div>
+      <div class="campo"><label>Contraseña</label>
+        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="emitir" id="btnLogin" style="margin-top:6px">Entrar</button>
+      <div class="login-msg" id="loginMsg"></div>
+      <button class="btn-sec" id="btnIrAjustes" style="margin-top:14px">⚙︎ Configurar conexión</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== APP (oculta hasta login) ====== -->
+<div class="pantalla" id="vistaApp" style="display:none">
+  <div class="header">
+    <button class="navbtn" id="btnHist" title="Historial">🕘</button>
+    <img src="icons/icon-192.png" alt="Activaciones Malcriado" style="height:70px;border-radius:14px;">
+    <button class="gear" id="btnGear" title="Ajustes">⚙︎</button>
+  </div>
+
+  <!-- Vista: Nueva activación -->
+  <div class="scroll" id="vistaForm">
+    <div class="titulo">Nueva activación <small>The Branican Company · Gin Malcriado</small></div>
+
+    <!-- 1. General -->
+    <div class="campo"><label>Nombre de la activación *</label>
+      <input type="text" id="f_nombre" placeholder="Ej: Lanzamiento Bar La Mar"></div>
+    <div class="fila">
+      <div class="campo crece"><label>Lugar *</label><input type="text" id="f_lugar" placeholder="Ej: Bar La Mar"></div>
+      <div class="campo crece"><label>Comuna *</label><input type="text" id="f_comuna" placeholder="Ej: Providencia"></div>
+    </div>
+    <div class="campo"><label>Día de la activación *</label><input type="date" id="f_fecha"></div>
+    <div class="campo"><label>Persona de The Branican Company a cargo *</label>
+      <input type="text" id="f_branican" placeholder="Nombre"></div>
+    <div class="campo"><label>Quién contactó para la activación</label>
+      <input type="text" id="f_contacto" placeholder="Nombre"></div>
+    <div class="fila">
+      <div class="campo crece"><label>Contacto futuro (nombre)</label><input type="text" id="f_cfut_nom" placeholder="Nombre"></div>
+      <div class="campo crece"><label>Contacto futuro (tel/email)</label><input type="text" id="f_cfut_dato" placeholder="+56 9 ..."></div>
+    </div>
+    <div class="campo"><label>Cantidad de personas invitadas</label>
+      <input type="number" id="f_invitados" inputmode="numeric" placeholder="0" min="0"></div>
+
+    <!-- 2. Personal y costos -->
+    <div class="titulo" style="margin-top:18px;font-size:18px">Personal y costos</div>
+    <div class="campo"><label>Personas que trabajaron</label>
+      <input type="number" id="f_personal" inputmode="numeric" placeholder="0" min="0"></div>
+    <div class="fila">
+      <div class="campo crece"><label>Pago total al personal ($)</label><input type="text" id="f_pago" inputmode="numeric" placeholder="$0"></div>
+      <div class="campo crece"><label>Gasto en adicionales ($)</label><input type="text" id="f_adic" inputmode="numeric" placeholder="$0"></div>
+    </div>
+
+    <!-- 3. Control de Gin -->
+    <div class="titulo" style="margin-top:18px;font-size:18px">Control de Gin Malcriado</div>
+    <div class="seg">
+      <button class="on" id="bBotella" data-fmt="Botella">Botella</button>
+      <button id="bGranel" data-fmt="Granel">Granel</button>
+    </div>
+    <div class="fila">
+      <div class="campo crece"><label>Gin inicial llevado <span class="precio-tag" id="uni1">botellas</span></label>
+        <input type="number" id="f_inicial" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+      <div class="campo crece"><label>Gin sobrante al final <span class="precio-tag" id="uni2">botellas</span></label>
+        <input type="number" id="f_sobrante" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+    </div>
+
+    <!-- 4. Cortesías -->
+    <div class="campo"><label>Gin regalado / degustaciones <span class="precio-tag" id="uni3">botellas</span></label>
+      <input type="number" id="f_cortesia" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+
+    <!-- Resumen interno -->
+    <div class="resumen">
+      <div class="r"><span>Gin consumido (calculado)</span><b id="rConsumido">0</b></div>
+      <div class="r"><span>Costo total (pago + adicionales)</span><b id="rCosto">$0</b></div>
+    </div>
+
+    <!-- 5. Fotos -->
+    <div class="titulo" style="margin-top:18px;font-size:18px">Fotos del evento *</div>
+    <div class="foto-count" id="fotoCount">Sube entre 1 y 10 fotos.</div>
+    <div class="fotos-grid" id="fotosGrid">
+      <div class="add-foto" id="addFoto">＋</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" multiple capture="environment" style="display:none">
+
+    <!-- 6. Quién registra -->
+    <div class="campo" style="margin-top:16px"><label>Nombre de quien registra *</label>
+      <input type="text" id="f_registra" placeholder="Tu nombre"></div>
+  </div>
+
+  <!-- Vista: Historial -->
+  <div class="scroll" id="vistaHistorial" style="display:none">
+    <div class="titulo">Historial <small id="histResumen">0 activaciones</small></div>
+    <div class="buscador">
+      <span>🔎</span>
+      <input type="text" id="busca" placeholder="Buscar activación, lugar, comuna…" autocomplete="off">
+      <button id="limpiaBusca" title="Borrar">✕</button>
+    </div>
+    <div id="listaHist"></div>
+    <div class="vacio" id="histVacio">Aún no hay activaciones registradas.</div>
+  </div>
+
+  <div class="footer" id="footerForm">
+    <button class="emitir" id="btnGuardar">Confirmar y Guardar Registro</button>
+  </div>
+</div>
+
+<!-- Hoja de ajustes -->
+<div class="sheet" id="sheet">
+  <div class="card">
+    <h3>Ajustes</h3>
+    <p>Conexión al cerebro en Google (se configura una sola vez).</p>
+    <label>URL del servidor (Apps Script)</label>
+    <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    <label>Clave secreta</label>
+    <input type="text" id="apiKey" placeholder="clave compartida">
+    <button class="guardar" id="guardar">Guardar y probar conexión</button>
+    <div class="estado" id="estadoConn"></div>
+
+    <!-- Solo admin: crear usuarios -->
+    <div class="admin-only" style="margin-top:22px;border-top:1px solid var(--linea);padding-top:16px">
+      <h3>Usuarios (solo admin)</h3>
+      <p>Da de alta a tu equipo.</p>
+      <label>Nombre</label><input type="text" id="nuNombre" placeholder="Nombre">
+      <label>Email</label><input type="email" id="nuEmail" placeholder="correo@...">
+      <label>Contraseña</label><input type="text" id="nuPass" placeholder="contraseña">
+      <label>Rol</label>
+      <select id="nuRol" style="width:100%;border:1px solid var(--linea);background:#0e0e0e;color:#fff;font-size:15px;padding:12px;border-radius:12px;">
+        <option value="usuario">usuario</option><option value="admin">admin</option>
+      </select>
+      <button class="guardar" id="btnCrearUsuario" style="margin-top:14px">Crear usuario</button>
+      <div class="estado" id="estadoUser"></div>
+      <button class="btn-sec" id="btnVerUsuarios">Ver usuarios</button>
+      <div id="listaUsuarios"></div>
+    </div>
+
+    <button class="btn-sec" id="btnLogout" style="margin-top:18px">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- Confirmación antes de guardar -->
+<div class="sheet" id="confirmSheet">
+  <div class="card">
+    <h3>¿Confirmas el registro?</h3>
+    <p>Una vez guardado queda en el historial y <b>no se puede editar</b>.</p>
+    <div class="confirm-detalle">
+      <div><span>Activación</span><b id="cfNombre">—</b></div>
+      <div><span>Lugar</span><b id="cfLugar">—</b></div>
+      <div><span>Gin consumido</span><b id="cfConsumo">0</b></div>
+      <div class="cf-total"><span>Costo total</span><b id="cfCosto">$0</b></div>
+    </div>
+    <button class="guardar" id="btnConfirmar">Guardar definitivo&nbsp;✓</button>
+    <button class="cancelar-btn" id="btnCancelarGuardar">Cancelar</button>
+  </div>
+</div>
+
+<!-- Ticket OK -->
+<div class="ticket-overlay" id="ticket">
+  <div class="ticket-card">
+    <img src="icons/icon-192.png" class="tk-logo" alt="">
+    <div class="tk-check">✓</div>
+    <div class="tk-titulo" id="tkTitulo">¡Acceso OK!</div>
+    <div class="tk-sub" id="tkSub">Bienvenido</div>
+    <div class="tk-linea dash"></div>
+    <div class="tk-pasos" id="tkPasos"></div>
+  </div>
+</div>
+
+<!-- Botella Malcriado (se desvanece) -->
+<div class="botella-overlay" id="botella">
+  <img class="botella-img" src="img/botella.png" alt="Gin Malcriado">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
