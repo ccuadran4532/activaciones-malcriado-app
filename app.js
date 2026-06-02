@@ -8,6 +8,7 @@
   let formato = "Botella";  // "Botella" | "Granel"
   let fotos = [];           // [{name, dataUrl}]
   let guardando = false;
+  let editandoId = null;    // si != null, el admin está editando esa activación
 
   // --- Conexión y sesión guardadas en el teléfono ---
   const store = {
@@ -190,7 +191,7 @@
     const req = [["f_nombre", "el nombre de la activación"], ["f_lugar", "el lugar"], ["f_comuna", "la comuna"],
                  ["f_branican", "la persona de The Branican Company"], ["f_registra", "quién registra"]];
     for (const [id, lbl] of req) if (!$(id).value.trim()) { toast("Falta " + lbl, "bad"); $(id).focus(); return false; }
-    if (fotos.length < 1) { toast("Sube al menos 1 foto", "bad"); return false; }
+    if (!editandoId && fotos.length < 1) { toast("Sube al menos 1 foto", "bad"); return false; }
     return true;
   }
   function pedirConfirmacion() {
@@ -217,6 +218,17 @@
       registrado_por: $("f_registra").value.trim(),
       usuario_email: usuario ? usuario.email : ""
     };
+    // Modo edición (admin): actualiza y vuelve, sin animación de ticket
+    if (editandoId) {
+      const be = $("btnGuardar"); guardando = true; be.disabled = true; const t0 = be.textContent; be.textContent = "Guardando…";
+      try {
+        const d = await postCerebro({ accion: "editar_activacion", id: editandoId, datos: datos });
+        if (d && d.ok) { toast("Cambios guardados", "ok"); salirEdicion(); limpiarFormulario(); cargarHistorial(); mostrarVista("historial"); }
+        else { toast((d && d.error) || "Error", "bad"); be.textContent = t0; }
+      } catch (e) { toast("Sin conexión", "bad"); be.textContent = t0; }
+      finally { guardando = false; be.disabled = false; }
+      return;
+    }
     const btn = $("btnGuardar"); guardando = true; btn.disabled = true; const txt = btn.textContent; btn.textContent = "Guardando…";
     try {
       const d = await postCerebro({ accion: "guardar_activacion", datos: datos, fotos: fotos });
@@ -267,10 +279,13 @@
       ' · consumo ' + esc(String(v.gin_consumido || 0)) + ' · ' + esc(v.registrado_por || "") + '</div></div>' +
       '<div class="der"><div class="monto">' + fmt(v.costo_total) + '</div>' +
       '<div class="fecha">' + fechaCorta(v.fecha) + '</div>' +
-      (usuario && usuario.rol === "admin" && v.id ? '<button class="mini bad delAct" data-id="' + esc(v.id) + '" style="margin-top:6px">🗑 Eliminar</button>' : '') +
+      (usuario && usuario.rol === "admin" && v.id ? '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">' +
+        '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️</button>' +
+        '<button class="mini bad delAct" data-id="' + esc(v.id) + '">🗑</button></div>' : '') +
       '</div></div>'
     ).join("");
     cont.querySelectorAll(".delAct").forEach((b) => b.addEventListener("click", () => eliminarActivacion(b.dataset.id)));
+    cont.querySelectorAll(".editAct").forEach((b) => b.addEventListener("click", () => abrirEdicion(b.dataset.id)));
     if (q && datos.length === 0) cont.innerHTML = '<div class="vacio">Sin resultados para "' + esc(filtro) + '".</div>';
   }
 
@@ -343,6 +358,33 @@
       if (d && d.ok) { toast("Activación eliminada", "ok"); cargarHistorial(); }
       else toast((d && d.error) || "Error", "bad");
     } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  // ===== Editar activación (admin) =====
+  async function abrirEdicion(id) {
+    try {
+      const d = await postCerebro({ accion: "get_activacion", id: id });
+      if (!d || !d.ok) { toast("No se pudo cargar", "bad"); return; }
+      const x = d.datos;
+      $("f_nombre").value = x.nombre_activacion || ""; $("f_lugar").value = x.lugar || ""; $("f_comuna").value = x.comuna || "";
+      $("f_fecha").value = x.fecha || ""; $("f_branican").value = x.persona_branican || ""; $("f_contacto").value = x.quien_contacto || "";
+      $("f_cfut_nom").value = x.contacto_futuro_nombre || ""; $("f_cfut_dato").value = x.contacto_futuro_dato || "";
+      $("f_invitados").value = x.personas_invitadas || ""; $("f_personal").value = x.personal_cantidad || "";
+      $("f_pago").value = x.pago_personal ? ("$" + Number(x.pago_personal).toLocaleString("es-CL")) : "";
+      $("f_adic").value = x.gasto_adicionales ? ("$" + Number(x.gasto_adicionales).toLocaleString("es-CL")) : "";
+      setFormato(x.formato === "Granel" ? "Granel" : "Botella");
+      $("f_inicial").value = x.gin_inicial || ""; $("f_sobrante").value = x.gin_sobrante || ""; $("f_cortesia").value = x.gin_cortesia || "";
+      $("f_registra").value = x.registrado_por || "";
+      fotos = []; renderFotos();
+      editandoId = id;
+      $("btnGuardar").textContent = "Guardar cambios";
+      $("tituloForm").innerHTML = "Editar activación <small>Modo administrador · las fotos no cambian</small>";
+      recalcular(); mostrarVista("form");
+    } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  function salirEdicion() {
+    editandoId = null;
+    $("btnGuardar").textContent = "Confirmar y Guardar Registro";
+    $("tituloForm").innerHTML = "Nueva activación <small>The Branican Company · Gin Malcriado</small>";
   }
 
   // ===== Panel de administración =====
@@ -446,7 +488,7 @@
     $("btnCancelarGuardar").addEventListener("click", () => $("confirmSheet").classList.remove("show"));
     $("confirmSheet").addEventListener("click", (e) => { if (e.target === $("confirmSheet")) $("confirmSheet").classList.remove("show"); });
     // historial / nav
-    $("btnHist").addEventListener("click", () => mostrarVista(vista === "form" ? "historial" : "form"));
+    $("btnHist").addEventListener("click", () => { if (editandoId && vista === "form") { salirEdicion(); limpiarFormulario(); } mostrarVista(vista === "form" ? "historial" : "form"); });
     $("busca").addEventListener("input", (e) => { $("limpiaBusca").classList.toggle("show", !!e.target.value); renderHistorial(e.target.value); });
     $("limpiaBusca").addEventListener("click", () => { $("busca").value = ""; $("limpiaBusca").classList.remove("show"); renderHistorial(""); });
     // ajustes / admin

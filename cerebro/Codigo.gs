@@ -40,6 +40,8 @@ function doPost(e){
       case "aprobar_usuario":    return responder_(aprobarUsuario_(data));
       case "activar_usuario":    return responder_(activarUsuario_(data));
       case "guardar_activacion": return responder_(guardarActivacion_(data));
+      case "get_activacion":     return responder_(getActivacion_(data));
+      case "editar_activacion":  return responder_(editarActivacion_(data));
       case "historial":          return responder_(historial_(data));
       case "revisar_activacion": return responder_(revisarActivacion_(data));
       case "get_config":         return responder_({ok:true, config:getConfig_()});
@@ -263,6 +265,35 @@ function historial_(data){
     if (esAdmin || String(r[20]).toLowerCase()===miEmail) lista.push(row);
   });
   return {ok:true, lista:lista.reverse()};
+}
+// Admin: obtiene todos los datos de una activacion (para editarla)
+function getActivacion_(data){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
+  var rows=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  for(var i=0;i<rows.length;i++) if(String(rows[i][COL_ID-1])===String(data.id)){
+    var r=rows[i];
+    return {ok:true, datos:{ fecha:Utilities.formatDate(new Date(r[1]),"GMT-4","yyyy-MM-dd"), nombre_activacion:r[2], lugar:r[3], comuna:r[4],
+      persona_branican:r[5], quien_contacto:r[6], contacto_futuro_nombre:r[7], contacto_futuro_dato:r[8],
+      personas_invitadas:r[9], personal_cantidad:r[10], pago_personal:r[11], gasto_adicionales:r[12], formato:r[13],
+      gin_inicial:r[14], gin_sobrante:r[15], gin_consumido:r[16], gin_cortesia:r[17], costo_total:r[18], registrado_por:r[19] }};
+  }
+  return {ok:false,error:"No encontrada"};
+}
+// Admin: edita los datos de una activacion (no toca fotos ni el ID)
+function editarActivacion_(data){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
+  var ids=sh.getRange(2,COL_ID,n-1,1).getValues();
+  for(var i=0;i<ids.length;i++) if(String(ids[i][0])===String(data.id)){
+    var d=data.datos||{}, fila=2+i;
+    sh.getRange(fila,2,1,19).setValues([[ d.fecha||"", d.nombre_activacion||"", d.lugar||"", d.comuna||"", d.persona_branican||"",
+      d.quien_contacto||"", d.contacto_futuro_nombre||"", d.contacto_futuro_dato||"",
+      Number(d.personas_invitadas)||0, Number(d.personal_cantidad)||0, Number(d.pago_personal)||0, Number(d.gasto_adicionales)||0,
+      d.formato||"", Number(d.gin_inicial)||0, Number(d.gin_sobrante)||0, Number(d.gin_consumido)||0, Number(d.gin_cortesia)||0,
+      Number(d.costo_total)||0, d.registrado_por||"" ]]);
+    sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
+    return {ok:true};
+  }
+  return {ok:false,error:"No encontrada"};
 }
 function revisarActivacion_(data){
   var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
