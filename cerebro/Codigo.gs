@@ -23,7 +23,14 @@ function doGet(e){
   if (clave !== prop_("CLAVE")) return responder_({ok:false,error:"Clave incorrecta"});
   return responder_({ok:true, msg:"Cerebro Activaciones conectado"});
 }
-function autorizar(){ planilla_(); return "OK, permisos concedidos"; }
+function autorizar(){
+  planilla_();
+  // Manda un correo de prueba a tu propia cuenta para pedir/confirmar el permiso de envio.
+  MailApp.sendEmail(Session.getActiveUser().getEmail(),
+    "Activaciones Malcriado - permisos OK",
+    "Listo. La app ya puede enviar codigos de verificacion por correo.");
+  return "OK, permisos concedidos (incluye correo)";
+}
 
 function doPost(e){
   try{
