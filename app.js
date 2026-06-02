@@ -283,6 +283,20 @@
     } catch (e) { est.className = "estado bad"; est.textContent = "No se pudo conectar (revisa la URL)"; }
   }
 
+  // ===== Mi cuenta: cambiar contraseña =====
+  async function cambiarPass() {
+    const est = $("estadoPass");
+    const a = $("cpActual").value, b = $("cpNueva").value;
+    if (!a || !b) { est.className = "estado bad"; est.textContent = "Completa ambas contraseñas"; return; }
+    if (b.length < 4) { est.className = "estado bad"; est.textContent = "La nueva contraseña es muy corta"; return; }
+    est.className = "estado"; est.textContent = "Cambiando…";
+    try {
+      const d = await postCerebro({ accion: "cambiar_pass", email: usuario.email, pass_actual: a, pass_nueva: b });
+      if (d && d.ok) { est.textContent = "✓ Contraseña actualizada"; $("cpActual").value = ""; $("cpNueva").value = ""; }
+      else { est.className = "estado bad"; est.textContent = (d && d.error) || "No se pudo cambiar"; }
+    } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
+  }
+
   // ===== Admin: usuarios =====
   async function crearUsuario() {
     const est = $("estadoUser");
@@ -344,6 +358,7 @@
     $("btnGear").addEventListener("click", abrirSheet);
     $("guardar").addEventListener("click", guardarConn);
     $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) cerrarSheet(); });
+    $("btnCambiarPass").addEventListener("click", cambiarPass);
     $("btnCrearUsuario").addEventListener("click", crearUsuario);
     $("btnVerUsuarios").addEventListener("click", verUsuarios);
     $("btnLogout").addEventListener("click", logout);

@@ -130,6 +130,17 @@
   <div class="card">
     <h3>Ajustes</h3>
 
+    <!-- Mi cuenta: cambiar contraseña (todos los usuarios) -->
+    <div style="border-bottom:1px solid var(--linea);padding-bottom:16px;margin-bottom:8px">
+      <p>Cambia tu contraseña cuando quieras.</p>
+      <label>Contraseña actual</label>
+      <input type="password" id="cpActual" placeholder="tu contraseña actual">
+      <label>Nueva contraseña</label>
+      <input type="password" id="cpNueva" placeholder="nueva contraseña">
+      <button class="guardar" id="btnCambiarPass" style="margin-top:12px">Cambiar mi contraseña</button>
+      <div class="estado" id="estadoPass"></div>
+    </div>
+
     <!-- Conexión: SOLO admin (los usuarios normales no la ven) -->
     <div class="admin-only">
       <p>Conexión al cerebro en Google.</p>

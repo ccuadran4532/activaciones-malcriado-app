@@ -38,6 +38,7 @@ function doPost(e){
     switch(data.accion){
       case "login":            return responder_(login_(data));
       case "crear_usuario":    return responder_(crearUsuario_(data));
+      case "cambiar_pass":     return responder_(cambiarPass_(data));
       case "listar_usuarios":  return responder_(listarUsuarios_());
       case "guardar_activacion": return responder_(guardarActivacion_(data));
       case "historial":        return responder_(historial_());
@@ -151,6 +152,20 @@ function crearUsuario_(data){
   }
   u.appendRow([data.nombre, email, hashPass_(data.pass), data.rol||"usuario", true, new Date()]);
   return {ok:true};
+}
+function cambiarPass_(data){
+  var ss = planilla_(), u = ss.getSheetByName("Usuarios"); var n = u.getLastRow();
+  if (n < 2) return {ok:false,error:"No hay usuarios"};
+  var datos = u.getRange(2,1,n-1,5).getValues();
+  var email = (data.email||"").toLowerCase();
+  for (var i=0;i<datos.length;i++){
+    if (String(datos[i][1]).toLowerCase() === email){
+      if (!verifyPass_(data.pass_actual, datos[i][2])) return {ok:false,error:"Tu contraseña actual no es correcta"};
+      u.getRange(2+i, 3).setValue(hashPass_(data.pass_nueva));
+      return {ok:true};
+    }
+  }
+  return {ok:false,error:"Usuario no encontrado"};
 }
 function listarUsuarios_(){
   var ss = planilla_(), u = ss.getSheetByName("Usuarios"); var n = u.getLastRow();
