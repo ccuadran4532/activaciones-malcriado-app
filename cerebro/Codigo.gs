@@ -32,7 +32,9 @@ function doPost(e){
     switch(data.accion){
       case "login":              return responder_(login_(data));
       case "registrar":          return responder_(registrar_(data));
+      case "verificar_codigo":   return responder_(verificarCodigo_(data));
       case "crear_usuario":      return responder_(crearUsuario_(data));
+      case "eliminar_activacion":return responder_(eliminarActivacion_(data));
       case "cambiar_pass":       return responder_(cambiarPass_(data));
       case "listar_usuarios":    return responder_(listarUsuarios_());
       case "aprobar_usuario":    return responder_(aprobarUsuario_(data));
@@ -72,6 +74,10 @@ function asegurarHojas_(ss){
     var c = ss.insertSheet("Config");
     c.getRange(1,1,1,2).setValues([["Clave","Valor"]]).setFontWeight("bold");
     c.getRange(2,1,2,2).setValues([["aprobar_usuarios","si"],["aprobar_activaciones","si"]]);
+  }
+  if (!ss.getSheetByName("Codigos")){
+    var cg = ss.insertSheet("Codigos");
+    cg.getRange(1,1,1,5).setValues([["Email","Codigo","Expira","Nombre","PassHash"]]).setFontWeight("bold");
   }
   if (!ss.getSheetByName("Dashboard")) crearDashboard_(ss);
 }
@@ -142,15 +148,47 @@ function existeEmail_(email){
   for (var i=0;i<d.length;i++) if (String(d[i][0]).toLowerCase()===email) return true;
   return false;
 }
-// Auto-registro (el usuario se crea solo; queda pendiente si la config lo pide)
+// Auto-registro PASO 1: genera codigo de 6 digitos y lo envia por correo (vence 15 min)
 function registrar_(data){
   var email=(data.email||"").toLowerCase();
   if (!data.nombre||!email||!data.pass) return {ok:false,error:"Completa nombre, email y contrasena"};
   if (existeEmail_(email)) return {ok:false,error:"Ya existe ese email"};
-  var requiere = getConfig_().aprobar_usuarios === "si";
-  var estado = requiere ? "pendiente" : "aprobado";
-  uSheet_().appendRow([data.nombre, email, hashPass_(data.pass), "usuario", true, new Date(), estado]);
-  return {ok:true, pendiente: requiere};
+  var code = "" + Math.floor(100000 + Math.random()*900000);
+  var expira = new Date(Date.now() + 15*60*1000);
+  var cs = planilla_().getSheetByName("Codigos");
+  borrarCodigo_(cs, email);
+  cs.appendRow([email, code, expira, data.nombre, hashPass_(data.pass)]);
+  try{
+    MailApp.sendEmail(email, "Tu codigo - Activaciones Malcriado",
+      "Hola " + data.nombre + ",\n\nTu codigo de verificacion es:  " + code +
+      "\n\nVence en 15 minutos.\n\nActivaciones - The Branican Company");
+  }catch(e){ return {ok:false, error:"No se pudo enviar el correo: " + e}; }
+  return {ok:true, need_code:true};
+}
+function borrarCodigo_(cs, email){
+  var n=cs.getLastRow(); if(n<2) return;
+  var d=cs.getRange(2,1,n-1,1).getValues();
+  for(var i=d.length-1;i>=0;i--) if(String(d[i][0]).toLowerCase()===email) cs.deleteRow(2+i);
+}
+// Auto-registro PASO 2: valida el codigo y recien ahi crea el usuario
+function verificarCodigo_(data){
+  var email=(data.email||"").toLowerCase();
+  var cs=planilla_().getSheetByName("Codigos"), n=cs.getLastRow();
+  if(n<2) return {ok:false,error:"Pide un codigo primero"};
+  var d=cs.getRange(2,1,n-1,5).getValues();
+  for(var i=0;i<d.length;i++){
+    if(String(d[i][0]).toLowerCase()===email){
+      if(new Date() > new Date(d[i][2])) { cs.deleteRow(2+i); return {ok:false,error:"El codigo expiro, pide uno nuevo"}; }
+      if(String(d[i][1])!==String(data.code||"").trim()) return {ok:false,error:"Codigo incorrecto"};
+      if(existeEmail_(email)){ cs.deleteRow(2+i); return {ok:false,error:"Ya existe ese email"}; }
+      var requiere=getConfig_().aprobar_usuarios==="si";
+      var estado=requiere?"pendiente":"aprobado";
+      uSheet_().appendRow([d[i][3], email, d[i][4], "usuario", true, new Date(), estado]);
+      cs.deleteRow(2+i);
+      return {ok:true, pendiente:requiere};
+    }
+  }
+  return {ok:false,error:"No hay codigo para ese email"};
 }
 // Admin crea usuario (queda aprobado directo)
 function crearUsuario_(data){
@@ -233,4 +271,15 @@ function revisarActivacion_(data){
     sh.getRange(2+i,COL_ESTADO).setValue(data.estado); return{ok:true};
   }
   return{ok:false,error:"Activacion no encontrada"};
+}
+// Admin: elimina una activacion (borra la fila y manda sus fotos a la papelera de Drive)
+function eliminarActivacion_(data){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
+  var rows=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  for(var i=0;i<rows.length;i++) if(String(rows[i][COL_ID-1])===String(data.id)){
+    try{ var url=String(rows[i][21]); var m=url.match(/folders\/([^\/?]+)/); if(m) DriveApp.getFolderById(m[1]).setTrashed(true); }catch(e){}
+    sh.deleteRow(2+i);
+    return {ok:true};
+  }
+  return {ok:false,error:"Activacion no encontrada"};
 }

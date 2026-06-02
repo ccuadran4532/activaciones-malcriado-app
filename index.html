@@ -33,11 +33,19 @@
 
     <div class="login-card" id="registroCard" style="display:none">
       <h2>Crear cuenta</h2>
-      <p>Tu cuenta quedará pendiente de aprobación del administrador.</p>
-      <div class="campo"><label>Nombre</label><input type="text" id="regNombre" placeholder="Tu nombre"></div>
-      <div class="campo"><label>Email</label><input type="email" id="regEmail" placeholder="tu@correo.com"></div>
-      <div class="campo"><label>Contraseña</label><input type="password" id="regPass" placeholder="crea una contraseña"></div>
-      <button class="emitir" id="btnRegistrar" style="margin-top:6px">Registrarme</button>
+      <div id="regPaso1">
+        <p>Te enviaremos un código a tu correo para verificarlo.</p>
+        <div class="campo"><label>Nombre</label><input type="text" id="regNombre" placeholder="Tu nombre"></div>
+        <div class="campo"><label>Email</label><input type="email" id="regEmail" placeholder="tu@correo.com"></div>
+        <div class="campo"><label>Contraseña</label><input type="password" id="regPass" placeholder="crea una contraseña"></div>
+        <button class="emitir" id="btnRegistrar" style="margin-top:6px">Enviar código</button>
+      </div>
+      <div id="regPaso2" style="display:none">
+        <p>Revisa tu correo y escribe el código (vence en 15 minutos).</p>
+        <div class="campo"><label>Código de 6 dígitos</label><input type="text" id="regCodigo" inputmode="numeric" placeholder="______"></div>
+        <button class="emitir" id="btnConfirmarCodigo" style="margin-top:6px">Confirmar código</button>
+        <button class="btn-sec" id="btnReenviar" style="margin-top:10px">Reenviar código</button>
+      </div>
       <div class="login-msg" id="regMsg"></div>
       <button class="btn-sec" id="btnVolverLogin" style="margin-top:14px">← Volver a entrar</button>
     </div>

@@ -266,8 +266,11 @@
       esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") +
       ' · consumo ' + esc(String(v.gin_consumido || 0)) + ' · ' + esc(v.registrado_por || "") + '</div></div>' +
       '<div class="der"><div class="monto">' + fmt(v.costo_total) + '</div>' +
-      '<div class="fecha">' + fechaCorta(v.fecha) + '</div></div></div>'
+      '<div class="fecha">' + fechaCorta(v.fecha) + '</div>' +
+      (usuario && usuario.rol === "admin" && v.id ? '<button class="mini bad delAct" data-id="' + esc(v.id) + '" style="margin-top:6px">🗑 Eliminar</button>' : '') +
+      '</div></div>'
     ).join("");
+    cont.querySelectorAll(".delAct").forEach((b) => b.addEventListener("click", () => eliminarActivacion(b.dataset.id)));
     if (q && datos.length === 0) cont.innerHTML = '<div class="vacio">Sin resultados para "' + esc(filtro) + '".</div>';
   }
 
@@ -301,23 +304,45 @@
     } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
   }
 
-  // ===== Auto-registro =====
-  function irRegistro() { $("loginCard").style.display = "none"; $("registroCard").style.display = ""; $("regMsg").textContent = ""; }
+  // ===== Auto-registro con código por correo =====
+  let regEmailPend = "";
+  function irRegistro() { $("loginCard").style.display = "none"; $("registroCard").style.display = ""; $("regMsg").textContent = ""; $("regPaso1").style.display = ""; $("regPaso2").style.display = "none"; }
   function volverLogin() { $("registroCard").style.display = "none"; $("loginCard").style.display = ""; }
   async function registrar() {
     initAudio();
     const nombre = $("regNombre").value.trim(), email = $("regEmail").value.trim().toLowerCase(), pass = $("regPass").value;
     const m = $("regMsg");
     if (!nombre || !email || !pass) { m.className = "login-msg bad"; m.textContent = "Completa todos los campos"; return; }
-    m.className = "login-msg"; m.textContent = "Creando…";
+    m.className = "login-msg"; m.textContent = "Enviando código…";
     try {
-      const d = await postCerebro({ accion: "registrar", nombre, email, pass });
+      const d = await postCerebro({ accion: "registrar", nombre: nombre, email: email, pass: pass });
+      if (d && d.ok && d.need_code) {
+        regEmailPend = email; $("regPaso1").style.display = "none"; $("regPaso2").style.display = "";
+        m.className = "login-msg ok"; m.textContent = "✓ Código enviado a " + email;
+      } else { m.className = "login-msg bad"; m.textContent = (d && d.error) || "No se pudo enviar"; }
+    } catch (e) { m.className = "login-msg bad"; m.textContent = "Sin conexión"; }
+  }
+  async function confirmarCodigo() {
+    const code = $("regCodigo").value.trim(), m = $("regMsg");
+    if (!code) { m.className = "login-msg bad"; m.textContent = "Escribe el código"; return; }
+    m.className = "login-msg"; m.textContent = "Verificando…";
+    try {
+      const d = await postCerebro({ accion: "verificar_codigo", email: regEmailPend, code: code });
       if (d && d.ok) {
         m.className = "login-msg ok";
-        m.textContent = d.pendiente ? "✓ Cuenta creada. Espera la aprobación del admin." : "✓ Cuenta creada. Ya puedes entrar.";
-        setTimeout(() => { volverLogin(); $("loginEmail").value = email; }, 2400);
-      } else { m.className = "login-msg bad"; m.textContent = (d && d.error) || "No se pudo crear"; }
+        m.textContent = d.pendiente ? "✓ Verificado. Espera la aprobación del admin." : "✓ Verificado. Ya puedes entrar.";
+        setTimeout(() => { volverLogin(); $("loginEmail").value = regEmailPend; }, 2600);
+      } else { m.className = "login-msg bad"; m.textContent = (d && d.error) || "Código incorrecto"; }
     } catch (e) { m.className = "login-msg bad"; m.textContent = "Sin conexión"; }
+  }
+  // ===== Eliminar activación (admin) =====
+  async function eliminarActivacion(id) {
+    if (!window.confirm("¿Eliminar esta activación? Se borra el registro y sus fotos. No se puede deshacer.")) return;
+    try {
+      const d = await postCerebro({ accion: "eliminar_activacion", id: id });
+      if (d && d.ok) { toast("Activación eliminada", "ok"); cargarHistorial(); }
+      else toast((d && d.error) || "Error", "bad");
+    } catch (e) { toast("Sin conexión", "bad"); }
   }
 
   // ===== Panel de administración =====
@@ -403,6 +428,8 @@
     $("btnIrRegistro").addEventListener("click", irRegistro);
     $("btnVolverLogin").addEventListener("click", volverLogin);
     $("btnRegistrar").addEventListener("click", registrar);
+    $("btnConfirmarCodigo").addEventListener("click", confirmarCodigo);
+    $("btnReenviar").addEventListener("click", registrar);
     // formato
     $("bBotella").addEventListener("click", () => { setFormato("Botella"); recalcular(); });
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });
