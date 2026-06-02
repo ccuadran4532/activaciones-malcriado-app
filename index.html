@@ -19,7 +19,7 @@
 <div class="pantalla" id="vistaLogin">
   <div class="login-wrap">
     <img class="login-logo" src="icons/icon-512.png" alt="Malcriado">
-    <div class="login-card">
+    <div class="login-card" id="loginCard">
       <h2>Activaciones Malcriado</h2>
       <p>The Branican Company</p>
       <div class="campo"><label>Email</label>
@@ -28,6 +28,18 @@
         <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="emitir" id="btnLogin" style="margin-top:6px">Entrar</button>
       <div class="login-msg" id="loginMsg"></div>
+      <button class="btn-sec" id="btnIrRegistro" style="margin-top:14px">Crear cuenta nueva</button>
+    </div>
+
+    <div class="login-card" id="registroCard" style="display:none">
+      <h2>Crear cuenta</h2>
+      <p>Tu cuenta quedará pendiente de aprobación del administrador.</p>
+      <div class="campo"><label>Nombre</label><input type="text" id="regNombre" placeholder="Tu nombre"></div>
+      <div class="campo"><label>Email</label><input type="email" id="regEmail" placeholder="tu@correo.com"></div>
+      <div class="campo"><label>Contraseña</label><input type="password" id="regPass" placeholder="crea una contraseña"></div>
+      <button class="emitir" id="btnRegistrar" style="margin-top:6px">Registrarme</button>
+      <div class="login-msg" id="regMsg"></div>
+      <button class="btn-sec" id="btnVolverLogin" style="margin-top:14px">← Volver a entrar</button>
     </div>
   </div>
 </div>
@@ -120,6 +132,39 @@
     <div class="vacio" id="histVacio">Aún no hay activaciones registradas.</div>
   </div>
 
+  <!-- Vista: Panel de administración (solo admin) -->
+  <div class="scroll admin-only" id="vistaAdmin" style="display:none">
+    <div class="titulo">🛡️ Administración <small>Panel del administrador</small></div>
+
+    <div class="titulo" style="font-size:16px;margin-top:14px">Configuración</div>
+    <div class="switch-row"><div class="info"><b>Aprobar nuevos usuarios</b><span>Quedan pendientes hasta que los apruebes</span></div>
+      <label class="sw"><input type="checkbox" id="cfgUsuarios"><span class="track"></span><span class="dot"></span></label></div>
+    <div class="switch-row"><div class="info"><b>Aprobar activaciones</b><span>Cada registro espera tu revisión</span></div>
+      <label class="sw"><input type="checkbox" id="cfgActiv"><span class="track"></span><span class="dot"></span></label></div>
+
+    <div class="titulo" style="font-size:16px;margin-top:18px">Usuarios pendientes</div>
+    <div id="admPendientes"><div class="vacio">Sin pendientes.</div></div>
+
+    <div class="titulo" style="font-size:16px;margin-top:18px">Activaciones por revisar</div>
+    <div id="admActiv"><div class="vacio">Sin activaciones por revisar.</div></div>
+
+    <div class="titulo" style="font-size:16px;margin-top:18px">Todos los usuarios</div>
+    <div id="admUsuarios"></div>
+
+    <div class="titulo" style="font-size:16px;margin-top:18px">Crear usuario</div>
+    <div class="campo"><label>Nombre</label><input id="auNombre" type="text" placeholder="Nombre"></div>
+    <div class="fila">
+      <div class="campo crece"><label>Email</label><input id="auEmail" type="email" placeholder="correo@..."></div>
+      <div class="campo crece"><label>Contraseña</label><input id="auPass" type="text" placeholder="temporal"></div>
+    </div>
+    <div class="switch-row"><div class="info"><b>Es administrador</b></div>
+      <label class="sw"><input type="checkbox" id="auAdmin"><span class="track"></span><span class="dot"></span></label></div>
+    <button class="btn-sec" id="btnAuCrear">Crear usuario</button>
+    <div class="estado" id="auEstado"></div>
+
+    <button class="btn-sec" id="btnCerrarAdmin" style="margin-top:24px">← Volver al formulario</button>
+  </div>
+
   <div class="footer" id="footerForm">
     <button class="emitir" id="btnGuardar">Confirmar y Guardar Registro</button>
   </div>
@@ -152,21 +197,9 @@
       <div class="estado" id="estadoConn"></div>
     </div>
 
-    <!-- Solo admin: crear usuarios -->
+    <!-- Solo admin: abrir panel -->
     <div class="admin-only" style="margin-top:22px;border-top:1px solid var(--linea);padding-top:16px">
-      <h3>Usuarios (solo admin)</h3>
-      <p>Da de alta a tu equipo.</p>
-      <label>Nombre</label><input type="text" id="nuNombre" placeholder="Nombre">
-      <label>Email</label><input type="email" id="nuEmail" placeholder="correo@...">
-      <label>Contraseña</label><input type="text" id="nuPass" placeholder="contraseña">
-      <label>Rol</label>
-      <select id="nuRol" style="width:100%;border:1px solid var(--linea);background:#0e0e0e;color:#fff;font-size:15px;padding:12px;border-radius:12px;">
-        <option value="usuario">usuario</option><option value="admin">admin</option>
-      </select>
-      <button class="guardar" id="btnCrearUsuario" style="margin-top:14px">Crear usuario</button>
-      <div class="estado" id="estadoUser"></div>
-      <button class="btn-sec" id="btnVerUsuarios">Ver usuarios</button>
-      <div id="listaUsuarios"></div>
+      <button class="guardar" id="btnAbrirAdmin">🛡️ Panel de administración</button>
     </div>
 
     <button class="btn-sec" id="btnLogout" style="margin-top:18px">Cerrar sesión</button>

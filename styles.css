@@ -170,3 +170,9 @@ input,button,select{font-family:inherit;}
 .userline .rolbadge{font-size:10px;font-weight:800;text-transform:uppercase;background:#23314a;color:#7fb0ff;padding:2px 7px;border-radius:6px;}
 .userline .rolbadge.admin{background:#3a2330;color:#ff8fb0;}
 .btn-sec{width:100%;margin-top:10px;border:1px solid var(--linea);border-radius:14px;padding:13px;background:var(--panel2);color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+
+/* Botones chicos del panel admin */
+.mini{border:0;border-radius:9px;padding:7px 11px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;}
+.mini.ok{background:var(--verde);} .mini.bad{background:var(--rojo);}
+.userline span .rolbadge{margin-left:6px;}
+#vistaAdmin .userline{flex-wrap:wrap;gap:6px;}

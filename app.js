@@ -222,8 +222,11 @@
       const d = await postCerebro({ accion: "guardar_activacion", datos: datos, fotos: fotos });
       if (d && d.ok) {
         btn.classList.add("ok"); btn.textContent = "✓ Guardado";
-        mostrarTicket("¡Registro guardado!", "Queda en el historial",
-          ["✓ Guardado en Google Drive", "✓ Planilla actualizada", "✓ " + fotos.length + " foto(s) subidas"]);
+        const pend = d.pendiente;
+        mostrarTicket(pend ? "¡Enviado a revisión!" : "¡Registro guardado!",
+          pend ? "Pendiente de aprobación del admin" : "Queda en el historial",
+          [pend ? "✓ Enviado al administrador" : "✓ Guardado en Google Drive",
+           "✓ Planilla actualizada", "✓ " + fotos.length + " foto(s) subidas"]);
         limpiarFormulario();
         setTimeout(() => { btn.classList.remove("ok"); btn.textContent = txt; cargarHistorial(); }, 2600);
       } else { throw new Error((d && d.error) || "Respuesta no válida"); }
@@ -244,7 +247,7 @@
   let cacheHist = [];
   async function cargarHistorial() {
     try {
-      const d = await postCerebro({ accion: "historial" });
+      const d = await postCerebro({ accion: "historial", email: usuario ? usuario.email : "", rol: usuario ? usuario.rol : "" });
       cacheHist = (d && d.ok && d.lista) ? d.lista : [];
     } catch (e) { cacheHist = []; }
     renderHistorial("");
@@ -259,7 +262,8 @@
     cont.innerHTML = datos.map((v) =>
       '<div class="hcard"><div class="izq">' +
       '<div class="cli">' + esc(v.nombre_activacion || "Sin nombre") + '</div>' +
-      '<div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") +
+      '<div class="meta">' + (v.estado && v.estado !== "aprobado" ? '<span class="tag factura">' + esc(v.estado) + '</span>' : '') +
+      esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") +
       ' · consumo ' + esc(String(v.gin_consumido || 0)) + ' · ' + esc(v.registrado_por || "") + '</div></div>' +
       '<div class="der"><div class="monto">' + fmt(v.costo_total) + '</div>' +
       '<div class="fecha">' + fechaCorta(v.fecha) + '</div></div></div>'
@@ -297,26 +301,86 @@
     } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
   }
 
-  // ===== Admin: usuarios =====
-  async function crearUsuario() {
-    const est = $("estadoUser");
-    const nombre = $("nuNombre").value.trim(), email = $("nuEmail").value.trim().toLowerCase(), pass = $("nuPass").value, rol = $("nuRol").value;
+  // ===== Auto-registro =====
+  function irRegistro() { $("loginCard").style.display = "none"; $("registroCard").style.display = ""; $("regMsg").textContent = ""; }
+  function volverLogin() { $("registroCard").style.display = "none"; $("loginCard").style.display = ""; }
+  async function registrar() {
+    initAudio();
+    const nombre = $("regNombre").value.trim(), email = $("regEmail").value.trim().toLowerCase(), pass = $("regPass").value;
+    const m = $("regMsg");
+    if (!nombre || !email || !pass) { m.className = "login-msg bad"; m.textContent = "Completa todos los campos"; return; }
+    m.className = "login-msg"; m.textContent = "Creando…";
+    try {
+      const d = await postCerebro({ accion: "registrar", nombre, email, pass });
+      if (d && d.ok) {
+        m.className = "login-msg ok";
+        m.textContent = d.pendiente ? "✓ Cuenta creada. Espera la aprobación del admin." : "✓ Cuenta creada. Ya puedes entrar.";
+        setTimeout(() => { volverLogin(); $("loginEmail").value = email; }, 2400);
+      } else { m.className = "login-msg bad"; m.textContent = (d && d.error) || "No se pudo crear"; }
+    } catch (e) { m.className = "login-msg bad"; m.textContent = "Sin conexión"; }
+  }
+
+  // ===== Panel de administración =====
+  function abrirAdmin() { cerrarSheet(); mostrarVista("admin"); cargarAdmin(); }
+  async function cargarAdmin() {
+    try { const c = await postCerebro({ accion: "get_config" }); if (c && c.ok && c.config) { $("cfgUsuarios").checked = c.config.aprobar_usuarios === "si"; $("cfgActiv").checked = c.config.aprobar_activaciones === "si"; } } catch (e) {}
+    try {
+      const u = await postCerebro({ accion: "listar_usuarios" });
+      const lista = (u && u.ok && u.lista) ? u.lista : [];
+      renderPendientes(lista.filter((x) => x.estado === "pendiente"));
+      renderUsuarios(lista);
+    } catch (e) {}
+    try {
+      const h = await postCerebro({ accion: "historial", rol: "admin", email: usuario.email });
+      renderActivPend(((h && h.ok && h.lista) ? h.lista : []).filter((x) => x.estado === "pendiente"));
+    } catch (e) {}
+  }
+  function renderPendientes(lista) {
+    const c = $("admPendientes");
+    if (!lista.length) { c.innerHTML = '<div class="vacio">Sin pendientes.</div>'; return; }
+    c.innerHTML = lista.map((u) => '<div class="userline"><span>' + esc(u.nombre) + ' · ' + esc(u.email) + '</span><span>' +
+      '<button class="mini ok" data-e="' + esc(u.email) + '">Aprobar</button> <button class="mini bad" data-e="' + esc(u.email) + '">Rechazar</button></span></div>').join("");
+    c.querySelectorAll(".mini.ok").forEach((b) => b.addEventListener("click", () => accionUsuario("aprobar_usuario", { email: b.dataset.e, aprobar: true })));
+    c.querySelectorAll(".mini.bad").forEach((b) => b.addEventListener("click", () => accionUsuario("aprobar_usuario", { email: b.dataset.e, aprobar: false })));
+  }
+  function renderUsuarios(lista) {
+    const c = $("admUsuarios");
+    c.innerHTML = lista.map((u) => '<div class="userline"><span>' + esc(u.nombre) + ' · ' + esc(u.email) +
+      ' <span class="rolbadge ' + (u.rol === "admin" ? "admin" : "") + '">' + esc(u.rol) + '</span>' + (u.estado === "pendiente" ? ' <span class="rolbadge">pendiente</span>' : '') + '</span>' +
+      '<button class="mini ' + (u.activo ? "bad" : "ok") + '" data-e="' + esc(u.email) + '" data-a="' + (u.activo ? "0" : "1") + '">' + (u.activo ? "Desactivar" : "Activar") + '</button></div>').join("");
+    c.querySelectorAll("button.mini").forEach((b) => b.addEventListener("click", () => accionUsuario("activar_usuario", { email: b.dataset.e, activo: b.dataset.a === "1" })));
+  }
+  function renderActivPend(lista) {
+    const c = $("admActiv");
+    if (!lista.length) { c.innerHTML = '<div class="vacio">Sin activaciones por revisar.</div>'; return; }
+    c.innerHTML = lista.map((a) => '<div class="userline"><span><b>' + esc(a.nombre_activacion) + '</b><br><small style="color:var(--gris)">' + esc(a.lugar || "") + ' · ' + esc(a.registrado_por || "") + '</small></span><span>' +
+      '<button class="mini ok" data-id="' + esc(a.id) + '">Aprobar</button> <button class="mini bad" data-id="' + esc(a.id) + '">Rechazar</button></span></div>').join("");
+    c.querySelectorAll(".mini.ok").forEach((b) => b.addEventListener("click", () => revisarAct(b.dataset.id, "aprobado")));
+    c.querySelectorAll(".mini.bad").forEach((b) => b.addEventListener("click", () => revisarAct(b.dataset.id, "rechazado")));
+  }
+  async function accionUsuario(accion, extra) {
+    try { const d = await postCerebro(Object.assign({ accion: accion }, extra)); if (d && d.ok) { toast("Hecho", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad"); } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  async function revisarAct(id, estado) {
+    try { const d = await postCerebro({ accion: "revisar_activacion", id: id, estado: estado }); if (d && d.ok) { toast(estado === "aprobado" ? "Aprobada" : "Rechazada", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad"); } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  async function guardarConfig() {
+    try {
+      await postCerebro({ accion: "set_config", clave_cfg: "aprobar_usuarios", valor: $("cfgUsuarios").checked ? "si" : "no" });
+      await postCerebro({ accion: "set_config", clave_cfg: "aprobar_activaciones", valor: $("cfgActiv").checked ? "si" : "no" });
+      toast("Configuración guardada", "ok");
+    } catch (e) { toast("No se pudo guardar", "bad"); }
+  }
+  async function crearUsuarioAdmin() {
+    const est = $("auEstado");
+    const nombre = $("auNombre").value.trim(), email = $("auEmail").value.trim().toLowerCase(), pass = $("auPass").value, rol = $("auAdmin").checked ? "admin" : "usuario";
     if (!nombre || !email || !pass) { est.className = "estado bad"; est.textContent = "Completa nombre, email y contraseña"; return; }
     est.className = "estado"; est.textContent = "Creando…";
     try {
-      const d = await postCerebro({ accion: "crear_usuario", nombre, email, pass, rol });
-      if (d && d.ok) { est.textContent = "✓ Usuario creado"; $("nuNombre").value = $("nuEmail").value = $("nuPass").value = ""; verUsuarios(); }
+      const d = await postCerebro({ accion: "crear_usuario", nombre: nombre, email: email, pass: pass, rol: rol });
+      if (d && d.ok) { est.textContent = "✓ Usuario creado"; $("auNombre").value = $("auEmail").value = $("auPass").value = ""; $("auAdmin").checked = false; cargarAdmin(); }
       else { est.className = "estado bad"; est.textContent = (d && d.error) || "No se pudo crear"; }
     } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
-  }
-  async function verUsuarios() {
-    try {
-      const d = await postCerebro({ accion: "listar_usuarios" });
-      const lista = (d && d.ok && d.lista) ? d.lista : [];
-      $("listaUsuarios").innerHTML = lista.map((u) =>
-        '<div class="userline"><span>' + esc(u.nombre) + ' · ' + esc(u.email) + '</span>' +
-        '<span class="rolbadge ' + (u.rol === "admin" ? "admin" : "") + '">' + esc(u.rol) + '</span></div>').join("");
-    } catch (e) { toast("No se pudo cargar usuarios", "bad"); }
   }
 
   // ===== Navegación =====
@@ -326,15 +390,19 @@
     $("vistaForm").style.display = v === "form" ? "" : "none";
     $("footerForm").style.display = v === "form" ? "" : "none";
     $("vistaHistorial").style.display = v === "historial" ? "" : "none";
+    $("vistaAdmin").style.display = v === "admin" ? "" : "none";
     $("btnHist").textContent = v === "form" ? "🕘" : "←";
     if (v === "historial") { $("busca").value = ""; $("limpiaBusca").classList.remove("show"); renderHistorial(""); }
   }
 
   // ===== Init =====
   function init() {
-    // login
+    // login / registro
     $("btnLogin").addEventListener("click", login);
     $("loginPass").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+    $("btnIrRegistro").addEventListener("click", irRegistro);
+    $("btnVolverLogin").addEventListener("click", volverLogin);
+    $("btnRegistrar").addEventListener("click", registrar);
     // formato
     $("bBotella").addEventListener("click", () => { setFormato("Botella"); recalcular(); });
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });
@@ -359,9 +427,13 @@
     $("guardar").addEventListener("click", guardarConn);
     $("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) cerrarSheet(); });
     $("btnCambiarPass").addEventListener("click", cambiarPass);
-    $("btnCrearUsuario").addEventListener("click", crearUsuario);
-    $("btnVerUsuarios").addEventListener("click", verUsuarios);
     $("btnLogout").addEventListener("click", logout);
+    // panel admin
+    $("btnAbrirAdmin").addEventListener("click", abrirAdmin);
+    $("btnCerrarAdmin").addEventListener("click", () => mostrarVista("form"));
+    $("cfgUsuarios").addEventListener("change", guardarConfig);
+    $("cfgActiv").addEventListener("change", guardarConfig);
+    $("btnAuCrear").addEventListener("click", crearUsuarioAdmin);
 
     setFormato("Botella");
     // sesión recordada
