@@ -321,7 +321,6 @@
     // login
     $("btnLogin").addEventListener("click", login);
     $("loginPass").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
-    $("btnIrAjustes").addEventListener("click", abrirSheet);
     // formato
     $("bBotella").addEventListener("click", () => { setFormato("Botella"); recalcular(); });
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });

@@ -28,7 +28,6 @@
         <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="emitir" id="btnLogin" style="margin-top:6px">Entrar</button>
       <div class="login-msg" id="loginMsg"></div>
-      <button class="btn-sec" id="btnIrAjustes" style="margin-top:14px">⚙︎ Configurar conexión</button>
     </div>
   </div>
 </div>
@@ -130,13 +129,17 @@
 <div class="sheet" id="sheet">
   <div class="card">
     <h3>Ajustes</h3>
-    <p>Conexión al cerebro en Google (se configura una sola vez).</p>
-    <label>URL del servidor (Apps Script)</label>
-    <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec">
-    <label>Clave secreta</label>
-    <input type="text" id="apiKey" placeholder="clave compartida">
-    <button class="guardar" id="guardar">Guardar y probar conexión</button>
-    <div class="estado" id="estadoConn"></div>
+
+    <!-- Conexión: SOLO admin (los usuarios normales no la ven) -->
+    <div class="admin-only">
+      <p>Conexión al cerebro en Google.</p>
+      <label>URL del servidor (Apps Script)</label>
+      <input type="url" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <label>Clave secreta</label>
+      <input type="text" id="apiKey" placeholder="clave compartida">
+      <button class="guardar" id="guardar">Guardar y probar conexión</button>
+      <div class="estado" id="estadoConn"></div>
+    </div>
 
     <!-- Solo admin: crear usuarios -->
     <div class="admin-only" style="margin-top:22px;border-top:1px solid var(--linea);padding-top:16px">
