@@ -170,8 +170,8 @@
   }
   // ===== Cálculos (consumo, duración y costo) =====
   function recalcular() {
-    const botCons = Math.max(soloNum($("f_bot_ini").value) - soloNum($("f_bot_sob").value), 0);
-    const graCons = Math.max(soloNum($("f_gra_ini").value) - soloNum($("f_gra_sob").value), 0);
+    const botCons = Math.round(Math.max(soloNum($("f_bot_ini").value) - soloNum($("f_bot_sob").value), 0) * 100) / 100;
+    const graCons = Math.round(Math.max(soloNum($("f_gra_ini").value) - soloNum($("f_gra_sob").value), 0) * 100) / 100;
     const pagoUnit = soloInt($("f_pago").value);
     const nTrab = soloInt($("f_personal").value);
     const pagoTotal = pagoUnit * nTrab; // pago por trabajador × cantidad
@@ -280,7 +280,7 @@
       html += '<div class="grupo" style="padding:10px 0 4px;color:#888">' + grupo.toUpperCase() + '</div>';
       CHECKLIST[grupo].forEach((it) => {
         html += '<div class="chk-item"><span>' + esc(it.n) + ' <small style="color:var(--gris)">(' + it.u + ')</small></span>' +
-          '<input type="number" inputmode="decimal" min="0" step="0.5" value="0" data-n="' + esc(it.n) + '" data-u="' + esc(it.u) + '"' + (it.key ? ' data-key="' + it.key + '"' : "") + ' class="chkInput"></div>';
+          '<input type="text" inputmode="decimal" value="0" data-n="' + esc(it.n) + '" data-u="' + esc(it.u) + '"' + (it.key ? ' data-key="' + it.key + '"' : "") + ' class="chkInput"></div>';
       });
     });
     $("checklistBox").innerHTML = html;
