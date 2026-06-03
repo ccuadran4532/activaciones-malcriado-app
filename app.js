@@ -284,6 +284,9 @@
       });
     });
     $("checklistBox").innerHTML = html;
+    // Al tocar un casillero: si está en 0 se borra para escribir limpio. Si queda vacío, vuelve a 0.
+    $("checklistBox").addEventListener("focusin", (e) => { if (e.target.classList.contains("chkInput") && (e.target.value === "0" || e.target.value === "")) e.target.value = ""; });
+    $("checklistBox").addEventListener("focusout", (e) => { if (e.target.classList.contains("chkInput") && e.target.value.trim() === "") e.target.value = "0"; });
   }
   function checklistTexto() {
     const arr = [];
