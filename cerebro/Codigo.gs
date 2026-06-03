@@ -290,10 +290,8 @@ function chequearInstagram(){
   }
 }
 // UN activador (cada 15 min) hace todo: Instagram + recordatorios (estos solo a las 8am)
-function tareasProgramadas(){
-  chequearInstagram();
-  if(Number(Utilities.formatDate(new Date(),"GMT-4","HH"))===8) notificarActivaciones();
-}
+// Activador diario (8-9am): solo recordatorios por correo. Instagram se anota a mano en la app.
+function tareasProgramadas(){ notificarActivaciones(); }
 
 /* ---------- Usuarios ---------- */
 function uSheet_(){ return planilla_().getSheetByName("Usuarios"); }
@@ -467,7 +465,8 @@ function guardarActivacion_(auth, data){
     Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
     d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
     d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
-    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no", "", "", "" ];
+    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no",
+    (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||"") ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -503,7 +502,8 @@ function getActivacion_(data){
       granel_ini:r[30], granel_sob:r[31], botellas_rellenadas:r[32],
       hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35],
       ventas_detalle:r[36], ingreso_ventas:r[37],
-      hielo_kg:r[38], tonica_litros:r[39], checklist:r[40] }};
+      hielo_kg:r[38], tonica_litros:r[39], checklist:r[40],
+      ig_inicio:r[43], ig_fin:r[44] }};
   }
   return {ok:false,error:"No encontrada"};
 }
@@ -523,6 +523,7 @@ function editarActivacion_(data){
       d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
       d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
       Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ]]);
+    sh.getRange(fila,44,1,3).setValues([[ (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||"") ]]);
     sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
     return {ok:true};
   }

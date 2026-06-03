@@ -182,10 +182,13 @@
     if (botCons) txt.push(botCons + " bot.");
     if (graCons) txt.push(graCons + " L granel");
     $("rConsumido").textContent = txt.length ? txt.join(" + ") : "0";
+    const igIni = soloInt($("f_ig_ini").value), igFin = soloInt($("f_ig_fin").value);
+    const igGanados = (igIni && igFin) ? Math.max(igFin - igIni, 0) : 0;
     $("rPagoTotal").textContent = fmt(pagoTotal);
+    $("rIgGanados").textContent = igGanados;
     $("rCosto").textContent = fmt(costo);
     $("rDuracion").textContent = horas ? (horas + " h") : "0 h";
-    return { botCons, graCons, litros, costo, horas, pagoTotal, pagoUnit };
+    return { botCons, graCons, litros, costo, horas, pagoTotal, pagoUnit, igIni, igFin, igGanados };
   }
   function pintarPesos(input) { const n = soloInt(input.value); input.value = n > 0 ? "$" + n.toLocaleString("es-CL") : ""; }
 
@@ -337,7 +340,8 @@
       hielo_cliente: $("f_hielo_cli").checked, tonica_cliente: $("f_tonica_cli").checked,
       contactos_nuevos: $("f_contactos_nuevos").value.trim(),
       ventas_detalle: ventasTexto(), ingreso_ventas: ventasTotal(),
-      checklist: checklistTexto(), hielo_kg: checklistHieloTonica().hielo, tonica_litros: checklistHieloTonica().tonica
+      checklist: checklistTexto(), hielo_kg: checklistHieloTonica().hielo, tonica_litros: checklistHieloTonica().tonica,
+      ig_inicio: c.igIni, ig_fin: c.igFin, ig_ganados: c.igGanados
     };
     // Modo edición (admin): actualiza y vuelve, sin animación de ticket
     if (editandoId) {
@@ -360,6 +364,7 @@
           pend ? "Pendiente de aprobación del admin" : "Queda en el historial",
           [pend ? "✓ Enviado al administrador" : "✓ Guardado en Google Drive",
            "✓ Planilla actualizada", "✓ " + fotos.length + " foto(s) subidas"]);
+        if (c.igGanados > 20) setTimeout(() => celebrarIG(c.igGanados), 4300); // estrellas tras la botella
         limpiarFormulario();
         setTimeout(() => { btn.classList.remove("ok"); btn.textContent = txt; cargarHistorial(); }, 2600);
       } else { throw new Error((d && d.error) || "Respuesta no válida"); }
@@ -371,7 +376,7 @@
   function limpiarFormulario() {
     ["f_nombre", "f_lugar", "f_comuna", "f_contacto", "f_cfut_nom", "f_cfut_dato", "f_invitados",
      "f_personal", "f_pago", "f_adic", "f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob",
-     "f_rellenadas", "f_cortesia", "f_contactos_nuevos"].forEach((id) => ($(id).value = ""));
+     "f_rellenadas", "f_cortesia", "f_contactos_nuevos", "f_ig_ini", "f_ig_fin"].forEach((id) => ($(id).value = ""));
     $("f_hielo_cli").checked = false; $("f_tonica_cli").checked = false;
     $("f_hora_ini").value = "20:00"; $("f_hora_fin").value = "23:00";
     ventas = []; renderVentas();
@@ -514,6 +519,7 @@
       $("f_contactos_nuevos").value = x.contactos_nuevos || "";
       parseVentas(x.ventas_detalle);
       parseChecklist(x.checklist);
+      $("f_ig_ini").value = x.ig_inicio || ""; $("f_ig_fin").value = x.ig_fin || "";
       $("f_registra").value = x.registrado_por || "";
       fotos = []; renderFotos();
       editandoId = id;
@@ -708,7 +714,7 @@
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });
     $("bAmbas").addEventListener("click", () => { setFormato("Ambas"); recalcular(); });
     // cálculos en vivo
-    ["f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob", "f_pago", "f_adic", "f_personal", "f_hora_ini", "f_hora_fin"].forEach((id) => $(id).addEventListener("input", recalcular));
+    ["f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob", "f_pago", "f_adic", "f_personal", "f_hora_ini", "f_hora_fin", "f_ig_ini", "f_ig_fin"].forEach((id) => $(id).addEventListener("input", recalcular));
     $("f_pago").addEventListener("blur", () => pintarPesos($("f_pago")));
     $("f_adic").addEventListener("blur", () => pintarPesos($("f_adic")));
     // fotos
