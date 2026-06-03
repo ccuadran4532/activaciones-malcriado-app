@@ -176,3 +176,38 @@ input,button,select{font-family:inherit;}
 .mini.ok{background:var(--verde);} .mini.bad{background:var(--rojo);}
 .userline span .rolbadge{margin-left:6px;}
 #vistaAdmin .userline{flex-wrap:wrap;gap:6px;}
+
+/* ===== Menú lateral (drawer) estilo Canvas ===== */
+.drawer-ov{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55);opacity:0;visibility:hidden;transition:.25s;}
+.drawer-ov.show{opacity:1;visibility:visible;}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:82%;max-width:330px;z-index:71;background:#0e0e0e;border-right:1px solid var(--linea);
+  transform:translateX(-100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;
+  padding:calc(20px + env(safe-area-inset-top)) 0 20px;overflow-y:auto;}
+.drawer.show{transform:translateX(0);}
+.drawer .perfil{display:flex;align-items:center;gap:12px;padding:6px 20px 18px;border-bottom:1px solid var(--linea);}
+.drawer .perfil img{height:46px;border-radius:10px;}
+.drawer .perfil b{font-size:16px;display:block;} .drawer .perfil span{font-size:12px;color:var(--gris);}
+.drawer .item{display:flex;align-items:center;gap:14px;padding:15px 20px;font-size:16px;font-weight:600;color:#fff;cursor:pointer;border:0;background:none;width:100%;text-align:left;}
+.drawer .item:active{background:#1c1c1c;}
+.drawer .item .ic{font-size:20px;width:24px;text-align:center;}
+.drawer .sep{height:1px;background:var(--linea);margin:8px 0;}
+.drawer .grupo{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#666;padding:14px 20px 4px;font-weight:800;}
+
+/* ===== Calendario ===== */
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin:10px 0 14px;}
+.cal-head button{background:var(--panel);border:1px solid var(--linea);color:#fff;border-radius:10px;width:40px;height:40px;font-size:20px;cursor:pointer;}
+.cal-head .mes{font-size:18px;font-weight:800;text-transform:capitalize;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.cal-grid .dow{font-size:11px;color:var(--gris);text-align:center;font-weight:700;padding-bottom:4px;}
+.cal-cell{aspect-ratio:1;border:1px solid var(--linea);border-radius:10px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;cursor:pointer;position:relative;}
+.cal-cell.vacia{border:0;background:none;cursor:default;}
+.cal-cell.hoy{border-color:var(--rojo);}
+.cal-cell .dot{width:7px;height:7px;border-radius:50%;background:var(--rojo);margin-top:3px;}
+.cal-cell .num2{position:absolute;top:3px;right:5px;font-size:9px;color:var(--rojo);font-weight:800;}
+.cal-dia{margin-top:16px;}
+.cal-dia h4{font-size:15px;margin:0 0 8px;}
+
+/* ===== Instructivo instalación ===== */
+.guia li{margin:10px 0;font-size:14px;line-height:1.5;color:#ddd;}
+.guia b{color:#fff;}
+.guia .plat{font-size:13px;font-weight:800;color:var(--rojo);text-transform:uppercase;letter-spacing:1px;margin-top:16px;}

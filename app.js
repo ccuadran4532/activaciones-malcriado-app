@@ -290,12 +290,14 @@
       '<div class="der"><div class="monto">' + fmt(v.costo_total) + '</div>' +
       '<div class="fecha">' + fechaCorta(v.fecha) + '</div>' +
       (usuario && usuario.rol === "admin" && v.id ? '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">' +
+        '<button class="mini ' + (v.estado === "aprobado" ? "ok" : "bad") + ' togAct" data-id="' + esc(v.id) + '" data-s="' + (v.estado === "aprobado" ? "pendiente" : "aprobado") + '">' + (v.estado === "aprobado" ? "✓ Aprobada" : "○ Aprobar") + '</button>' +
         '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️</button>' +
         '<button class="mini bad delAct" data-id="' + esc(v.id) + '">🗑</button></div>' : '') +
       '</div></div>'
     ).join("");
     cont.querySelectorAll(".delAct").forEach((b) => b.addEventListener("click", () => eliminarActivacion(b.dataset.id)));
     cont.querySelectorAll(".editAct").forEach((b) => b.addEventListener("click", () => abrirEdicion(b.dataset.id)));
+    cont.querySelectorAll(".togAct").forEach((b) => b.addEventListener("click", () => revisarAct(b.dataset.id, b.dataset.s)));
     if (q && datos.length === 0) cont.innerHTML = '<div class="vacio">Sin resultados para "' + esc(filtro) + '".</div>';
   }
 
@@ -404,17 +406,17 @@
   // ===== Panel de administración =====
   function abrirAdmin() { cerrarSheet(); mostrarVista("admin"); cargarAdmin(); }
   async function cargarAdmin() {
-    try { const c = await postCerebro({ accion: "get_config" }); if (c && c.ok && c.config) { $("cfgUsuarios").checked = c.config.aprobar_usuarios === "si"; $("cfgActiv").checked = c.config.aprobar_activaciones === "si"; } } catch (e) {}
-    try {
-      const u = await postCerebro({ accion: "listar_usuarios" });
-      const lista = (u && u.ok && u.lista) ? u.lista : [];
-      renderPendientes(lista.filter((x) => x.estado === "pendiente"));
-      renderUsuarios(lista);
-    } catch (e) {}
-    try {
-      const h = await postCerebro({ accion: "historial", rol: "admin", email: usuario.email });
-      renderActivPend(((h && h.ok && h.lista) ? h.lista : []).filter((x) => x.estado === "pendiente"));
-    } catch (e) {}
+    // 3 cargas EN PARALELO (mucho más rápido que una tras otra)
+    const [c, u, h] = await Promise.all([
+      postCerebro({ accion: "get_config" }).catch(() => null),
+      postCerebro({ accion: "listar_usuarios" }).catch(() => null),
+      postCerebro({ accion: "historial" }).catch(() => null)
+    ]);
+    if (c && c.ok && c.config) { $("cfgUsuarios").checked = c.config.aprobar_usuarios === "si"; $("cfgActiv").checked = c.config.aprobar_activaciones === "si"; }
+    const lista = (u && u.ok && u.lista) ? u.lista : [];
+    renderPendientes(lista.filter((x) => x.estado === "pendiente"));
+    renderUsuarios(lista);
+    renderActivPend(((h && h.ok && h.lista) ? h.lista : []).filter((x) => x.estado === "pendiente"));
   }
   function renderPendientes(lista) {
     const c = $("admPendientes");
@@ -452,7 +454,11 @@
     try { const d = await postCerebro(Object.assign({ accion: accion }, extra)); if (d && d.ok) { toast("Hecho", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad"); } catch (e) { toast("Sin conexión", "bad"); }
   }
   async function revisarAct(id, estado) {
-    try { const d = await postCerebro({ accion: "revisar_activacion", id: id, estado: estado }); if (d && d.ok) { toast(estado === "aprobado" ? "Aprobada" : "Rechazada", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad"); } catch (e) { toast("Sin conexión", "bad"); }
+    try {
+      const d = await postCerebro({ accion: "revisar_activacion", id: id, estado: estado });
+      if (d && d.ok) { toast(estado === "aprobado" ? "Aprobada ✓" : "Marcada pendiente", "ok"); await cargarHistorial(); if (vista === "admin") cargarAdmin(); }
+      else toast((d && d.error) || "Error", "bad");
+    } catch (e) { toast("Sin conexión", "bad"); }
   }
   async function guardarConfig() {
     try {
@@ -497,9 +503,49 @@
     $("footerForm").style.display = v === "form" ? "" : "none";
     $("vistaHistorial").style.display = v === "historial" ? "" : "none";
     $("vistaAdmin").style.display = v === "admin" ? "" : "none";
-    $("btnHist").textContent = v === "form" ? "🕘" : "←";
+    $("vistaCalendario").style.display = v === "calendario" ? "" : "none";
     if (v === "historial") { $("busca").value = ""; $("limpiaBusca").classList.remove("show"); renderHistorial(""); }
+    if (v === "calendario") renderCalendario();
   }
+
+  // ===== Menú lateral (drawer) =====
+  function openDrawer() { $("drNombre").textContent = usuario ? usuario.nombre : ""; $("drRol").textContent = usuario ? usuario.rol : ""; $("drawer").classList.add("show"); $("drawerOv").classList.add("show"); }
+  function closeDrawer() { $("drawer").classList.remove("show"); $("drawerOv").classList.remove("show"); }
+
+  // ===== Calendario =====
+  let calY, calM;
+  const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  function renderCalendario() {
+    const now = new Date();
+    if (calY === undefined) { calY = now.getFullYear(); calM = now.getMonth(); }
+    $("calMes").textContent = MESES[calM] + " " + calY;
+    const porDia = {};
+    cacheHist.forEach((v) => { const f = (v.fecha || "").slice(0, 10); if (f) porDia[f] = (porDia[f] || 0) + 1; });
+    const primero = new Date(calY, calM, 1);
+    const dow = (primero.getDay() + 6) % 7; // lunes = 0
+    const dias = new Date(calY, calM + 1, 0).getDate();
+    const dows = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+    let html = dows.map((d) => '<div class="dow">' + d + '</div>').join("");
+    for (let i = 0; i < dow; i++) html += '<div class="cal-cell vacia"></div>';
+    const hoy = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+    for (let d = 1; d <= dias; d++) {
+      const f = calY + "-" + String(calM + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      const cnt = porDia[f] || 0;
+      html += '<div class="cal-cell' + (f === hoy ? " hoy" : "") + '" data-f="' + f + '">' + d + (cnt ? '<div class="dot"></div>' : "") + (cnt > 1 ? '<div class="num2">' + cnt + '</div>' : "") + '</div>';
+    }
+    $("calGrid").innerHTML = html;
+    $("calGrid").querySelectorAll(".cal-cell[data-f]").forEach((c) => c.addEventListener("click", () => verDia(c.dataset.f)));
+    $("calDia").innerHTML = "";
+  }
+  function verDia(f) {
+    const items = cacheHist.filter((v) => (v.fecha || "").slice(0, 10) === f);
+    const d = new Date(f + "T00:00:00");
+    let html = '<h4>' + d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long" }) + '</h4>';
+    if (!items.length) html += '<div class="vacio">Sin activaciones este día.</div>';
+    else html += items.map((v) => '<div class="hcard"><div class="izq"><div class="cli">' + esc(v.nombre_activacion || "") + '</div><div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") + '</div></div><div class="der"><div class="fecha">' + esc(v.registrado_por || "") + '</div></div></div>').join("");
+    $("calDia").innerHTML = html;
+  }
+  function calMover(delta) { calM += delta; if (calM < 0) { calM = 11; calY--; } if (calM > 11) { calM = 0; calY++; } renderCalendario(); }
 
   // ===== Init =====
   function init() {
@@ -526,8 +572,22 @@
     $("btnConfirmar").addEventListener("click", guardarDefinitivo);
     $("btnCancelarGuardar").addEventListener("click", () => $("confirmSheet").classList.remove("show"));
     $("confirmSheet").addEventListener("click", (e) => { if (e.target === $("confirmSheet")) $("confirmSheet").classList.remove("show"); });
-    // historial / nav
-    $("btnHist").addEventListener("click", () => { if (editandoId && vista === "form") { salirEdicion(); limpiarFormulario(); } mostrarVista(vista === "form" ? "historial" : "form"); });
+    // menú lateral / navegación
+    $("btnMenu").addEventListener("click", openDrawer);
+    $("drawerOv").addEventListener("click", closeDrawer);
+    document.querySelectorAll(".drawer .item[data-nav]").forEach((b) => b.addEventListener("click", () => {
+      closeDrawer();
+      if (editandoId) { salirEdicion(); limpiarFormulario(); }
+      mostrarVista(b.dataset.nav);
+      if (b.dataset.nav === "admin") cargarAdmin();
+    }));
+    $("drInstalar").addEventListener("click", () => { closeDrawer(); $("installSheet").classList.add("show"); });
+    $("drAjustes").addEventListener("click", () => { closeDrawer(); abrirSheet(); });
+    $("drLogout").addEventListener("click", () => { closeDrawer(); logout(); });
+    $("cerrarInstall").addEventListener("click", () => $("installSheet").classList.remove("show"));
+    $("installSheet").addEventListener("click", (e) => { if (e.target === $("installSheet")) $("installSheet").classList.remove("show"); });
+    $("calPrev").addEventListener("click", () => calMover(-1));
+    $("calNext").addEventListener("click", () => calMover(1));
     $("busca").addEventListener("input", (e) => { $("limpiaBusca").classList.toggle("show", !!e.target.value); renderHistorial(e.target.value); });
     $("limpiaBusca").addEventListener("click", () => { $("busca").value = ""; $("limpiaBusca").classList.remove("show"); renderHistorial(""); });
     // ajustes / admin

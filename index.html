@@ -55,10 +55,29 @@
 <!-- ====== APP (oculta hasta login) ====== -->
 <div class="pantalla" id="vistaApp" style="display:none">
   <div class="header">
-    <button class="navbtn" id="btnHist" title="Historial">🕘</button>
+    <button class="navbtn" id="btnMenu" title="Menú">☰</button>
     <img src="icons/icon-192.png" alt="Activaciones Malcriado" style="height:70px;border-radius:14px;">
     <button class="gear" id="btnGear" title="Ajustes">⚙︎</button>
   </div>
+
+  <!-- Menú lateral (drawer) -->
+  <div class="drawer-ov" id="drawerOv"></div>
+  <nav class="drawer" id="drawer">
+    <div class="perfil">
+      <img src="icons/icon-192.png" alt="">
+      <div><b id="drNombre">—</b><span id="drRol"></span></div>
+    </div>
+    <button class="item" data-nav="form"><span class="ic">📝</span> Nueva activación</button>
+    <button class="item" data-nav="historial"><span class="ic">🕘</span> Historial</button>
+    <button class="item" data-nav="calendario"><span class="ic">📅</span> Calendario</button>
+    <button class="item admin-only" data-nav="admin"><span class="ic">🛡️</span> Administración</button>
+    <div class="sep"></div>
+    <div class="grupo">Ayuda</div>
+    <button class="item" id="drInstalar"><span class="ic">📲</span> Cómo instalar la app</button>
+    <button class="item" id="drAjustes"><span class="ic">⚙︎</span> Ajustes y mi cuenta</button>
+    <div class="sep"></div>
+    <button class="item" id="drLogout"><span class="ic">⎋</span> Cerrar sesión</button>
+  </nav>
 
   <!-- Vista: Nueva activación -->
   <div class="scroll" id="vistaForm">
@@ -121,7 +140,7 @@
     <div class="fotos-grid" id="fotosGrid">
       <div class="add-foto" id="addFoto">＋</div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" multiple capture="environment" style="display:none">
+    <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
 
     <!-- 6. Quién registra -->
     <div class="campo" style="margin-top:16px"><label>Nombre de quien registra *</label>
@@ -171,8 +190,40 @@
     <button class="btn-sec" id="btnCerrarAdmin" style="margin-top:24px">← Volver al formulario</button>
   </div>
 
+  <!-- Vista: Calendario -->
+  <div class="scroll" id="vistaCalendario" style="display:none">
+    <div class="titulo">📅 Calendario <small>Activaciones por día</small></div>
+    <div class="cal-head">
+      <button id="calPrev">‹</button>
+      <div class="mes" id="calMes">—</div>
+      <button id="calNext">›</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-dia" id="calDia"></div>
+  </div>
+
   <div class="footer" id="footerForm">
     <button class="emitir" id="btnGuardar">Confirmar y Guardar Registro</button>
+  </div>
+</div>
+
+<!-- Instructivo de instalación -->
+<div class="sheet" id="installSheet">
+  <div class="card">
+    <h3>📲 Cómo instalar la app</h3>
+    <p>Para tenerla como una app en tu teléfono (no es una web normal):</p>
+    <ul class="guia">
+      <div class="plat">iPhone (Safari)</div>
+      <li>1. Abre el link en <b>Safari</b> (no en otra app).</li>
+      <li>2. Toca el botón <b>Compartir</b> (el cuadrito con la flecha ↑, abajo al centro).</li>
+      <li>3. Baja y toca <b>"Agregar a inicio"</b>.</li>
+      <li>4. Toca <b>"Agregar"</b>. ¡Listo, queda con su ícono!</li>
+      <div class="plat">Android (Chrome)</div>
+      <li>1. Abre el link en <b>Chrome</b>.</li>
+      <li>2. Toca el menú <b>⋮</b> (arriba a la derecha).</li>
+      <li>3. Toca <b>"Instalar aplicación"</b> (o "Agregar a pantalla de inicio").</li>
+    </ul>
+    <button class="guardar" id="cerrarInstall" style="margin-top:8px">Entendido</button>
   </div>
 </div>
 
