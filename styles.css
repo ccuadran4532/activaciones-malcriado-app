@@ -211,3 +211,8 @@ input,button,select{font-family:inherit;}
 .guia li{margin:10px 0;font-size:14px;line-height:1.5;color:#ddd;}
 .guia b{color:#fff;}
 .guia .plat{font-size:13px;font-weight:800;color:var(--rojo);text-transform:uppercase;letter-spacing:1px;margin-top:16px;}
+
+/* Checklist insumos */
+.chk-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;background:var(--panel);border:1px solid var(--linea);border-radius:11px;margin-bottom:7px;}
+.chk-item span{font-size:14px;}
+.chk-item input{width:74px;border:1px solid var(--linea);background:#0e0e0e;color:#fff;font-size:16px;font-weight:700;text-align:center;border-radius:9px;padding:8px;}

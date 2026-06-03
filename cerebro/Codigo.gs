@@ -14,7 +14,8 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Registrado por","Usuario email","Carpeta fotos","N fotos","Estado","ID",
   "Hora inicio","Hora fin","Duracion horas","Botellas inicial","Botellas sobrante",
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
-  "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas"];
+  "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas",
+  "Hielo kg","Tonica L","Checklist insumos"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -38,7 +39,7 @@ function autorizar(){
 // Acciones que SOLO puede ejecutar un administrador
 var SOLO_ADMIN = ["crear_usuario","listar_usuarios","aprobar_usuario","activar_usuario",
   "eliminar_usuario","editar_usuario","get_config","set_config","get_activacion",
-  "editar_activacion","eliminar_activacion","revisar_activacion"];
+  "editar_activacion","eliminar_activacion","revisar_activacion","estadisticas","rehacer_dashboard"];
 
 // Rate limit con CacheService: max solicitudes por 'key' en 'win' segundos
 function rateOk_(key, max, win){
@@ -109,6 +110,8 @@ function doPost(e){
       case "revisar_activacion": return responder_(revisarActivacion_(data));
       case "get_config":         return responder_({ok:true, config:getConfig_()});
       case "set_config":         return responder_(setConfig_(data));
+      case "estadisticas":       return responder_(estadisticas_());
+      case "rehacer_dashboard":  return responder_(rehacerDashboard_());
       default:                   return responder_({ok:false,error:"Accion desconocida"});
     }
   }catch(err){ return responder_({ok:false,error:String(err)}); }
@@ -149,20 +152,57 @@ function asegurarHojas_(ss){
 function crearDashboard_(ss){
   var d = ss.insertSheet("Dashboard", 0);
   d.getRange("B2").setValue("DASHBOARD · ACTIVACIONES MALCRIADO").setFontSize(16).setFontWeight("bold");
+  // Columnas: J=personas, L=pago liquido, M=adicionales, Q=gin L, S=costo, AL=ingreso ventas, AM=hielo kg, AN=tonica L, X=estado
   var filas = [
-    ["Total de activaciones", '=COUNTA(Activaciones!C2:C)'],
-    ["Aprobadas", '=COUNTIF(Activaciones!X2:X,"aprobado")'],
-    ["Pendientes", '=COUNTIF(Activaciones!X2:X,"pendiente")'],
-    ["Costo total acumulado", '=SUM(Activaciones!S2:S)'],
-    ["Gin consumido total",   '=SUM(Activaciones!Q2:Q)'],
-    ["Gin cortesia total",    '=SUM(Activaciones!R2:R)'],
-    ["Personas invitadas total", '=SUM(Activaciones!J2:J)'],
-    ["Pago a personal total", '=SUM(Activaciones!L2:L)'],
-    ["Gasto adicionales total", '=SUM(Activaciones!M2:M)']
+    ["Total de activaciones", '=COUNTA(Activaciones!C2:C)', ""],
+    ["Aprobadas", '=COUNTIF(Activaciones!X2:X,"aprobado")', ""],
+    ["Pendientes", '=COUNTIF(Activaciones!X2:X,"pendiente")', ""],
+    ["", "", ""],
+    ["DINERO (CLP)", "", ""],
+    ["Ingreso por ventas (total)", '=SUM(Activaciones!AL2:AL)', "$"],
+    ["Gasto en personal (líquido)", '=SUM(Activaciones!L2:L)', "$"],
+    ["Impuesto boleta honorarios (~14,5%)", '=SUM(Activaciones!L2:L)*0.145/0.855', "$"],
+    ["Gasto en adicionales", '=SUM(Activaciones!M2:M)', "$"],
+    ["GASTO TOTAL (personal+impuesto+adic)", '=SUM(Activaciones!L2:L)/0.855+SUM(Activaciones!M2:M)', "$"],
+    ["RESULTADO (ingreso - gasto)", '=SUM(Activaciones!AL2:AL)-(SUM(Activaciones!L2:L)/0.855+SUM(Activaciones!M2:M))', "$"],
+    ["", "", ""],
+    ["PROMEDIOS (para ajustar lo que se lleva)", "", ""],
+    ["Personas invitadas (total)", '=SUM(Activaciones!J2:J)', ""],
+    ["Gin consumido total (L)", '=SUM(Activaciones!Q2:Q)', ""],
+    ["Gin L por persona", '=IFERROR(SUM(Activaciones!Q2:Q)/SUM(Activaciones!J2:J),0)', ""],
+    ["Hielo kg por persona", '=IFERROR(SUM(Activaciones!AM2:AM)/SUM(Activaciones!J2:J),0)', ""],
+    ["Tónica L por persona", '=IFERROR(SUM(Activaciones!AN2:AN)/SUM(Activaciones!J2:J),0)', ""]
   ];
-  d.getRange(4,2,filas.length,2).setValues(filas);
-  d.getRange(4,2,filas.length,1).setFontWeight("bold");
-  d.setColumnWidth(2,230); d.setColumnWidth(3,160);
+  d.getRange(4,2,filas.length,2).setValues(filas.map(function(f){return [f[0],f[1]];}));
+  for (var i=0;i<filas.length;i++){
+    d.getRange(4+i,2).setFontWeight("bold");
+    if (filas[i][2]==="$") d.getRange(4+i,3).setNumberFormat("$#,##0");
+    if (filas[i][1]==="" && filas[i][0]!=="") d.getRange(4+i,2).setFontColor("#E1251B"); // subtitulos
+  }
+  d.setColumnWidth(2,300); d.setColumnWidth(3,170);
+}
+
+/* ---------- Dashboard / estadísticas ---------- */
+function rehacerDashboard_(){
+  var ss=planilla_(); var d=ss.getSheetByName("Dashboard"); if(d) ss.deleteSheet(d); crearDashboard_(ss); return {ok:true};
+}
+function estadisticas_(){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow();
+  if(n<2) return {ok:true, stats:{total:0}};
+  var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  var personas=0,ginL=0,hielo=0,tonica=0,pago=0,adic=0,ingreso=0,total=0;
+  d.forEach(function(r){
+    total++; personas+=Number(r[9])||0; ginL+=Number(r[16])||0; pago+=Number(r[11])||0; adic+=Number(r[12])||0;
+    ingreso+=Number(r[37])||0; hielo+=Number(r[38])||0; tonica+=Number(r[39])||0;
+  });
+  var impuesto=pago*0.145/0.855, gastoTotal=pago/0.855+adic;
+  return {ok:true, stats:{
+    total:total, personas:personas, ingreso:Math.round(ingreso), pago:Math.round(pago), impuesto:Math.round(impuesto),
+    adic:Math.round(adic), gastoTotal:Math.round(gastoTotal), resultado:Math.round(ingreso-gastoTotal),
+    ginPorPersona: personas? Math.round(ginL/personas*100)/100:0,
+    hieloPorPersona: personas? Math.round(hielo/personas*100)/100:0,
+    tonicaPorPersona: personas? Math.round(tonica/personas*100)/100:0
+  }};
 }
 
 /* ---------- Config ---------- */
@@ -364,7 +404,8 @@ function guardarActivacion_(auth, data){
     d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
     Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
     d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
-    d.ventas_detalle||"", Number(d.ingreso_ventas)||0 ];
+    d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
+    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -398,7 +439,8 @@ function getActivacion_(data){
       hora_inicio:r[25], hora_fin:r[26], duracion_horas:r[27], botellas_ini:r[28], botellas_sob:r[29],
       granel_ini:r[30], granel_sob:r[31], botellas_rellenadas:r[32],
       hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35],
-      ventas_detalle:r[36], ingreso_ventas:r[37] }};
+      ventas_detalle:r[36], ingreso_ventas:r[37],
+      hielo_kg:r[38], tonica_litros:r[39], checklist:r[40] }};
   }
   return {ok:false,error:"No encontrada"};
 }
@@ -413,10 +455,11 @@ function editarActivacion_(data){
       Number(d.personas_invitadas)||0, Number(d.personal_cantidad)||0, Number(d.pago_personal)||0, Number(d.gasto_adicionales)||0,
       d.formato||"", Number(d.gin_inicial)||0, Number(d.gin_sobrante)||0, Number(d.gin_consumido)||0, Number(d.gin_cortesia)||0,
       Number(d.costo_total)||0, d.registrado_por||"" ]]);
-    sh.getRange(fila,26,1,13).setValues([[ d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
+    sh.getRange(fila,26,1,16).setValues([[ d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
       Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
       d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
-      d.ventas_detalle||"", Number(d.ingreso_ventas)||0 ]]);
+      d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
+      Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ]]);
     sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
     return {ok:true};
   }

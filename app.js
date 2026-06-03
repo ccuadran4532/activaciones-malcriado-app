@@ -237,6 +237,48 @@
     renderVentas();
   }
 
+  // ===== Checklist de insumos =====
+  const CHECKLIST = {
+    "Bebestibles": [
+      { n: "Hielo", u: "kg", key: "hielo" }, { n: "Tónica", u: "L", key: "tonica" },
+      { n: "Cítricos / deshidratados", u: "u" }, { n: "Botellas 250ml", u: "u" }
+    ],
+    "Activos": [
+      { n: "Toalla nova", u: "u" }, { n: "Alcohol para limpiar", u: "u" }, { n: "Mantel", u: "u" }, { n: "Perchero", u: "u" },
+      { n: "Poleras", u: "u" }, { n: "Jockey", u: "u" }, { n: "Libro", u: "u" }, { n: "Máquina Mercado Pago", u: "u" },
+      { n: "Cargador Mercado Pago", u: "u" }, { n: "Papel máquina MP", u: "u" }, { n: "Pizarra digital + lápices", u: "u" },
+      { n: "Alargador", u: "u" }, { n: "Mesa", u: "u" }, { n: "Letrero", u: "u" }, { n: "Hielera", u: "u" }, { n: "Poruña para hielo", u: "u" },
+      { n: "Pinzas", u: "u" }, { n: "Barra", u: "u" }, { n: "Pendón", u: "u" }, { n: "QR", u: "u" }, { n: "Vasos plásticos", u: "u" },
+      { n: "Vasos de vidrio", u: "u" }, { n: "Cuchillo", u: "u" }, { n: "Plato", u: "u" }, { n: "Refrigerador", u: "u" }, { n: "Vasos de degustación", u: "u" }
+    ]
+  };
+  function buildChecklist() {
+    let html = "";
+    Object.keys(CHECKLIST).forEach((grupo) => {
+      html += '<div class="grupo" style="padding:10px 0 4px;color:#888">' + grupo.toUpperCase() + '</div>';
+      CHECKLIST[grupo].forEach((it) => {
+        html += '<div class="chk-item"><span>' + esc(it.n) + ' <small style="color:var(--gris)">(' + it.u + ')</small></span>' +
+          '<input type="number" inputmode="decimal" min="0" step="0.5" value="0" data-n="' + esc(it.n) + '" data-u="' + esc(it.u) + '"' + (it.key ? ' data-key="' + it.key + '"' : "") + ' class="chkInput"></div>';
+      });
+    });
+    $("checklistBox").innerHTML = html;
+  }
+  function checklistTexto() {
+    const arr = [];
+    $("checklistBox").querySelectorAll(".chkInput").forEach((inp) => { const v = soloNum(inp.value); if (v > 0) arr.push(inp.dataset.n + ": " + v + " " + inp.dataset.u); });
+    return arr.join("; ");
+  }
+  function checklistHieloTonica() {
+    let hielo = 0, tonica = 0;
+    $("checklistBox").querySelectorAll(".chkInput").forEach((inp) => { if (inp.dataset.key === "hielo") hielo = soloNum(inp.value); if (inp.dataset.key === "tonica") tonica = soloNum(inp.value); });
+    return { hielo: hielo, tonica: tonica };
+  }
+  function resetChecklist() { $("checklistBox").querySelectorAll(".chkInput").forEach((i) => (i.value = "0")); }
+  function parseChecklist(txt) {
+    const map = {}; String(txt || "").split(";").forEach((p) => { const m = p.trim().match(/^(.*): ([\d.]+) /); if (m) map[m[1]] = m[2]; });
+    $("checklistBox").querySelectorAll(".chkInput").forEach((inp) => { inp.value = (map[inp.dataset.n] !== undefined) ? map[inp.dataset.n] : "0"; });
+  }
+
   // ===== Guardar activación =====
   function validar() {
     const req = [["f_nombre", "el nombre de la activación"], ["f_lugar", "el lugar"], ["f_comuna", "la comuna"],
@@ -275,7 +317,8 @@
       botellas_rellenadas: soloInt($("f_rellenadas").value),
       hielo_cliente: $("f_hielo_cli").checked, tonica_cliente: $("f_tonica_cli").checked,
       contactos_nuevos: $("f_contactos_nuevos").value.trim(),
-      ventas_detalle: ventasTexto(), ingreso_ventas: ventasTotal()
+      ventas_detalle: ventasTexto(), ingreso_ventas: ventasTotal(),
+      checklist: checklistTexto(), hielo_kg: checklistHieloTonica().hielo, tonica_litros: checklistHieloTonica().tonica
     };
     // Modo edición (admin): actualiza y vuelve, sin animación de ticket
     if (editandoId) {
@@ -313,6 +356,7 @@
     $("f_hielo_cli").checked = false; $("f_tonica_cli").checked = false;
     $("f_hora_ini").value = "20:00"; $("f_hora_fin").value = "23:00";
     ventas = []; renderVentas();
+    resetChecklist();
     fotos = []; renderFotos(); setFormato("Botellas");
     $("f_fecha").value = new Date().toISOString().slice(0, 10);
     recalcular();
@@ -448,6 +492,7 @@
       $("f_hielo_cli").checked = !!x.hielo_cliente; $("f_tonica_cli").checked = !!x.tonica_cliente;
       $("f_contactos_nuevos").value = x.contactos_nuevos || "";
       parseVentas(x.ventas_detalle);
+      parseChecklist(x.checklist);
       $("f_registra").value = x.registrado_por || "";
       fotos = []; renderFotos();
       editandoId = id;
@@ -466,16 +511,37 @@
   function abrirAdmin() { cerrarSheet(); mostrarVista("admin"); cargarAdmin(); }
   async function cargarAdmin() {
     // 3 cargas EN PARALELO (mucho más rápido que una tras otra)
-    const [c, u, h] = await Promise.all([
+    const [c, u, h, e] = await Promise.all([
       postCerebro({ accion: "get_config" }).catch(() => null),
       postCerebro({ accion: "listar_usuarios" }).catch(() => null),
-      postCerebro({ accion: "historial" }).catch(() => null)
+      postCerebro({ accion: "historial" }).catch(() => null),
+      postCerebro({ accion: "estadisticas" }).catch(() => null)
     ]);
     if (c && c.ok && c.config) { $("cfgUsuarios").checked = c.config.aprobar_usuarios === "si"; $("cfgActiv").checked = c.config.aprobar_activaciones === "si"; }
     const lista = (u && u.ok && u.lista) ? u.lista : [];
     renderPendientes(lista.filter((x) => x.estado === "pendiente"));
     renderUsuarios(lista);
     renderActivPend(((h && h.ok && h.lista) ? h.lista : []).filter((x) => x.estado === "pendiente"));
+    renderStats(e && e.ok ? e.stats : null);
+  }
+  function renderStats(s) {
+    if (!s || !s.total) { $("statsBox").innerHTML = '<div class="vacio">Aún no hay datos suficientes.</div>'; return; }
+    const row = (l, v) => '<div class="r"><span>' + l + '</span><b>' + v + '</b></div>';
+    $("statsBox").innerHTML = '<div class="resumen">' +
+      row("Activaciones", s.total) +
+      row("Ingreso por ventas", fmt(s.ingreso)) +
+      row("Gasto total (con honorarios)", fmt(s.gastoTotal)) +
+      row("Impuesto honorarios (~14,5%)", fmt(s.impuesto)) +
+      '<div class="total"><span>Resultado</span><b>' + fmt(s.resultado) + '</b></div></div>' +
+      '<div class="resumen" style="margin-top:8px">' +
+      row("Gin por persona", s.ginPorPersona + " L") +
+      row("Hielo por persona", s.hieloPorPersona + " kg") +
+      row("Tónica por persona", s.tonicaPorPersona + " L") + '</div>';
+  }
+  async function rehacerDash() {
+    toast("Actualizando dashboard…", "ok");
+    try { const d = await postCerebro({ accion: "rehacer_dashboard" }); toast(d && d.ok ? "✓ Dashboard actualizado en Google Sheets" : "Error", d && d.ok ? "ok" : "bad"); }
+    catch (e) { toast("Sin conexión", "bad"); }
   }
   function renderPendientes(lista) {
     const c = $("admPendientes");
@@ -630,6 +696,9 @@
     // ventas
     $("vAdd").addEventListener("click", agregarVenta);
     $("vPrecio").addEventListener("blur", () => pintarPesos($("vPrecio")));
+    // checklist
+    buildChecklist();
+    $("toggleChecklist").addEventListener("click", () => { const b = $("checklistBox"); const show = b.style.display === "none"; b.style.display = show ? "" : "none"; $("toggleChecklist").textContent = show ? "▲ Ocultar checklist" : "▼ Mostrar checklist"; });
     // guardar
     $("btnGuardar").addEventListener("click", pedirConfirmacion);
     $("btnConfirmar").addEventListener("click", guardarDefinitivo);
@@ -665,6 +734,7 @@
     $("cfgUsuarios").addEventListener("change", guardarConfig);
     $("cfgActiv").addEventListener("change", guardarConfig);
     $("btnAuCrear").addEventListener("click", crearUsuarioAdmin);
+    $("btnDashGoogle").addEventListener("click", rehacerDash);
 
     setFormato("Botella");
     // sesión recordada

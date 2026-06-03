@@ -160,6 +160,12 @@
       <div class="r"><span>Costo total (pago + adicionales)</span><b id="rCosto">$0</b></div>
     </div>
 
+    <!-- Checklist de insumos -->
+    <div class="titulo" style="margin-top:18px;font-size:18px">📦 Checklist de insumos</div>
+    <div class="foto-count" style="margin-bottom:8px">Qué se llevó a la activación (cantidad parte en 0).</div>
+    <button class="btn-sec" id="toggleChecklist" style="margin-bottom:10px">▼ Mostrar checklist</button>
+    <div id="checklistBox" style="display:none"></div>
+
     <!-- Ventas (opcional) -->
     <div class="titulo" style="margin-top:18px;font-size:18px">Ventas (opcional)</div>
     <div class="foto-count" style="margin-bottom:8px">Precio editable. Suma lo vendido en la activación (ingreso).</div>
@@ -207,7 +213,11 @@
   <div class="scroll admin-only" id="vistaAdmin" style="display:none">
     <div class="titulo">🛡️ Administración <small>Panel del administrador</small></div>
 
-    <div class="titulo" style="font-size:16px;margin-top:14px">Configuración</div>
+    <div class="titulo" style="font-size:16px;margin-top:14px">📊 Resumen y promedios</div>
+    <div id="statsBox"><div class="vacio">Cargando…</div></div>
+    <button class="btn-sec" id="btnDashGoogle" style="margin-top:8px">Actualizar dashboard en Google Sheets</button>
+
+    <div class="titulo" style="font-size:16px;margin-top:18px">Configuración</div>
     <div class="switch-row"><div class="info"><b>Aprobar nuevos usuarios</b><span>Quedan pendientes hasta que los apruebes</span></div>
       <label class="sw"><input type="checkbox" id="cfgUsuarios"><span class="track"></span><span class="dot"></span></label></div>
     <div class="switch-row"><div class="info"><b>Aprobar activaciones</b><span>Cada registro espera tu revisión</span></div>
