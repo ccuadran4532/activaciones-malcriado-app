@@ -89,6 +89,21 @@
     botellaT.push(setTimeout(() => ov.classList.add("fade"), 1700));
     botellaT.push(setTimeout(() => ov.classList.remove("show", "fade"), 3700));
   }
+  // ===== Celebración de seguidores Instagram (+20) =====
+  function celebrarIG(ganados) {
+    $("celeNum").textContent = "+" + ganados;
+    const ov = $("celebracion"); ov.classList.add("show"); sonidoICQ();
+    setTimeout(() => ov.classList.remove("show"), 5000);
+  }
+  function revisarCelebracion() {
+    let celeb = []; try { celeb = JSON.parse(localStorage.getItem("ig_celebradas") || "[]"); } catch (e) {}
+    for (const v of cacheHist) {
+      if (v.ig_ganados > 20 && v.id && celeb.indexOf(v.id) < 0) {
+        celeb.push(v.id); localStorage.setItem("ig_celebradas", JSON.stringify(celeb));
+        celebrarIG(v.ig_ganados); break;
+      }
+    }
+  }
 
   // ===== LOGIN =====
   async function login() {
@@ -374,6 +389,7 @@
       cacheHist = (d && d.ok && d.lista) ? d.lista : [];
     } catch (e) { cacheHist = []; }
     renderHistorial("");
+    revisarCelebracion();
   }
   function fechaCorta(s) { try { const d = new Date(s); return isNaN(d) ? (s || "") : d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" }); } catch (e) { return s || ""; } }
   function renderHistorial(filtro) {

@@ -15,7 +15,8 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Hora inicio","Hora fin","Duracion horas","Botellas inicial","Botellas sobrante",
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
   "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas",
-  "Hielo kg","Tonica L","Checklist insumos","Aviso 3d","Aviso dia"];
+  "Hielo kg","Tonica L","Checklist insumos","Aviso 3d","Aviso dia",
+  "IG inicio","IG fin","IG ganados"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -258,6 +259,42 @@ function notificarActivaciones(){
   }
 }
 
+/* ---------- Instagram (seguidores @ginmalcriado, perfil publico) ---------- */
+function parseSeg_(s){ var n=parseInt(String(s).replace(/[.,\s]/g,"").replace(/[^\d]/g,""),10); return isNaN(n)?null:n; }
+function seguidoresIG_(user){
+  try{
+    var r=UrlFetchApp.fetch("https://www.instagram.com/"+user+"/",{muteHttpExceptions:true,
+      headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}});
+    var t=r.getContentText();
+    var m=t.match(/content="([\d.,]+)\s*(Followers|Seguidores)/i);
+    return m? parseSeg_(m[1]) : null;
+  }catch(e){ return null; }
+}
+// Captura seguidores al inicio y al fin de cada activacion de HOY (segun su horario)
+function chequearInstagram(){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2) return;
+  var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  var tz="GMT-4", ahora=new Date();
+  var hoy=Utilities.formatDate(ahora,tz,"yyyy-MM-dd"), hhmm=Utilities.formatDate(ahora,tz,"HH:mm");
+  for(var i=0;i<d.length;i++){
+    var r=d[i];
+    if((r[23]||"")==="rechazado") continue;
+    var f=(r[1] instanceof Date)?Utilities.formatDate(r[1],tz,"yyyy-MM-dd"):String(r[1]).slice(0,10);
+    if(f!==hoy) continue;
+    var hIni=String(r[25]||""), hFin=String(r[26]||""), igIni=r[43], igFin=r[44];
+    if(hIni && hhmm>=hIni && igIni===""){ var s=seguidoresIG_("ginmalcriado"); if(s!=null) sh.getRange(2+i,44).setValue(s); }
+    if(hFin && hhmm>=hFin && igIni!=="" && igFin===""){
+      var s2=seguidoresIG_("ginmalcriado");
+      if(s2!=null){ sh.getRange(2+i,45).setValue(s2); sh.getRange(2+i,46).setValue(s2-Number(igIni)); }
+    }
+  }
+}
+// UN activador (cada 15 min) hace todo: Instagram + recordatorios (estos solo a las 8am)
+function tareasProgramadas(){
+  chequearInstagram();
+  if(Number(Utilities.formatDate(new Date(),"GMT-4","HH"))===8) notificarActivaciones();
+}
+
 /* ---------- Usuarios ---------- */
 function uSheet_(){ return planilla_().getSheetByName("Usuarios"); }
 function login_(data){
@@ -430,7 +467,7 @@ function guardarActivacion_(auth, data){
     Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
     d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
     d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
-    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no" ];
+    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no", "", "", "" ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -445,7 +482,8 @@ function historial_(u){
   d.forEach(function(r){
     var estado=r[COL_ESTADO-1]||"aprobado";
     var row={ id:r[COL_ID-1], fecha:r[1], nombre_activacion:r[2], lugar:r[3], comuna:r[4],
-      gin_consumido:r[16], costo_total:r[18], registrado_por:r[19], usuario_email:r[20], estado:estado };
+      gin_consumido:r[16], costo_total:r[18], registrado_por:r[19], usuario_email:r[20], estado:estado,
+      ig_ganados:(r[45]===""?null:Number(r[45])) };
     // Admin ve todo; usuario ve solo lo suyo
     if (esAdmin || String(r[20]).toLowerCase()===miEmail) lista.push(row);
   });
