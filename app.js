@@ -259,6 +259,36 @@
     renderVentas();
   }
 
+  // ===== Equipo de trabajo (Nombre, RUT, Función) =====
+  let trabajadores = [];
+  function agregarTrabajador() {
+    const nom = $("tNombre").value.trim(), rut = $("tRut").value.trim(), fun = $("tFuncion").value;
+    if (!nom) { toast("Escribe el nombre del trabajador", "bad"); $("tNombre").focus(); return; }
+    trabajadores.push({ nombre: nom, rut: rut, funcion: fun });
+    $("tNombre").value = ""; $("tRut").value = "";
+    renderTrabajadores(); $("tNombre").focus();
+  }
+  function renderTrabajadores() {
+    const c = $("tLista");
+    c.innerHTML = trabajadores.map((t, i) =>
+      '<div class="userline"><span><b>' + esc(t.nombre) + '</b>' + (t.rut ? ' · ' + esc(t.rut) : '') +
+      '<br><small style="color:var(--gris)">' + esc(t.funcion) + '</small></span>' +
+      '<button class="mini bad delT" data-i="' + i + '">✕</button></div>').join("");
+    c.querySelectorAll(".delT").forEach((b) => b.addEventListener("click", () => { trabajadores.splice(+b.dataset.i, 1); renderTrabajadores(); }));
+    // La cantidad de personas a contratar = trabajadores listados
+    if (trabajadores.length) { $("f_personal").value = trabajadores.length; recalcular(); }
+  }
+  function trabajadoresTexto() { return trabajadores.map((t) => t.nombre + "|" + t.rut + "|" + t.funcion).join("; "); }
+  function parseTrabajadores(txt) {
+    trabajadores = [];
+    String(txt || "").split(";").forEach((p) => {
+      const x = p.trim(); if (!x) return;
+      const a = x.split("|");
+      if (a[0]) trabajadores.push({ nombre: a[0].trim(), rut: (a[1] || "").trim(), funcion: (a[2] || "Colaborador").trim() });
+    });
+    renderTrabajadores();
+  }
+
   // ===== Checklist de insumos =====
   const CHECKLIST = {
     "Bebestibles": [
@@ -342,6 +372,7 @@
       botellas_rellenadas: soloInt($("f_rellenadas").value),
       hielo_cliente: $("f_hielo_cli").checked, tonica_cliente: $("f_tonica_cli").checked,
       contactos_nuevos: $("f_contactos_nuevos").value.trim(),
+      trabajadores_detalle: trabajadoresTexto(),
       ventas_detalle: ventasTexto(), ingreso_ventas: ventasTotal(),
       checklist: checklistTexto(), hielo_kg: checklistHieloTonica().hielo, tonica_litros: checklistHieloTonica().tonica,
       ig_inicio: c.igIni, ig_fin: c.igFin, ig_ganados: c.igGanados
@@ -383,6 +414,7 @@
     $("f_hielo_cli").checked = false; $("f_tonica_cli").checked = false;
     $("f_hora_ini").value = "20:00"; $("f_hora_fin").value = "23:00";
     ventas = []; renderVentas();
+    $("tNombre").value = ""; $("tRut").value = ""; trabajadores = []; renderTrabajadores();
     resetChecklist();
     fotos = []; renderFotos(); setFormato("Botellas");
     $("f_fecha").value = new Date().toISOString().slice(0, 10);
@@ -410,16 +442,21 @@
       '<div class="hcard"><div class="izq">' +
       '<div class="cli">' + esc(v.nombre_activacion || "Sin nombre") + '</div>' +
       '<div class="meta">' + (v.estado && v.estado !== "aprobado" ? '<span class="tag factura">' + esc(v.estado) + '</span>' : '') +
+      (v.mio ? '<span class="tag" style="background:#1f6f3f;color:#fff">tuya</span> ' : '') +
       esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") +
       ' · consumo ' + esc(String(v.gin_consumido || 0)) + ' · ' + esc(v.registrado_por || "") + '</div></div>' +
       '<div class="der"><div class="monto">' + fmt(v.costo_total) + '</div>' +
       '<div class="fecha">' + fechaCorta(v.fecha) + '</div>' +
-      (usuario && usuario.rol === "admin" && v.id ? '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">' +
-        '<button class="mini ' + (v.estado === "aprobado" ? "ok" : "bad") + ' togAct" data-id="' + esc(v.id) + '" data-s="' + (v.estado === "aprobado" ? "pendiente" : "aprobado") + '">' + (v.estado === "aprobado" ? "✓ Aprobada" : "○ Aprobar") + '</button>' +
-        '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️</button>' +
-        '<button class="mini bad delAct" data-id="' + esc(v.id) + '">🗑</button></div>' : '') +
+      '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">' +
+        (v.id ? '<button class="mini verAct" data-id="' + esc(v.id) + '" style="background:#2a2a2a">👁 Ver</button>' : '') +
+        (usuario && usuario.rol === "admin" && v.id ?
+          '<button class="mini ' + (v.estado === "aprobado" ? "ok" : "bad") + ' togAct" data-id="' + esc(v.id) + '" data-s="' + (v.estado === "aprobado" ? "pendiente" : "aprobado") + '">' + (v.estado === "aprobado" ? "✓ Aprobada" : "○ Aprobar") + '</button>' +
+          '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️</button>' +
+          '<button class="mini bad delAct" data-id="' + esc(v.id) + '">🗑</button>' : '') +
+      '</div>' +
       '</div></div>'
     ).join("");
+    cont.querySelectorAll(".verAct").forEach((b) => b.addEventListener("click", () => verDetalle(b.dataset.id)));
     cont.querySelectorAll(".delAct").forEach((b) => b.addEventListener("click", () => eliminarActivacion(b.dataset.id)));
     cont.querySelectorAll(".editAct").forEach((b) => b.addEventListener("click", () => abrirEdicion(b.dataset.id)));
     cont.querySelectorAll(".togAct").forEach((b) => b.addEventListener("click", () => revisarAct(b.dataset.id, b.dataset.s)));
@@ -521,6 +558,7 @@
       $("f_hielo_cli").checked = !!x.hielo_cliente; $("f_tonica_cli").checked = !!x.tonica_cliente;
       $("f_contactos_nuevos").value = x.contactos_nuevos || "";
       parseVentas(x.ventas_detalle);
+      parseTrabajadores(x.trabajadores_detalle);
       parseChecklist(x.checklist);
       $("f_ig_ini").value = x.ig_inicio || ""; $("f_ig_fin").value = x.ig_fin || "";
       $("f_registra").value = x.registrado_por || "";
@@ -535,6 +573,63 @@
     editandoId = null;
     $("btnGuardar").textContent = "Confirmar y Guardar Registro";
     $("tituloForm").innerHTML = "Nueva activación <small>The Branican Company · Gin Malcriado</small>";
+  }
+
+  // ===== Detalle / reporte de una activación (solo lectura, para todos) =====
+  async function verDetalle(id) {
+    try {
+      const d = await postCerebro({ accion: "ver_activacion", id: id });
+      if (!d || !d.ok) { toast("No se pudo cargar", "bad"); return; }
+      pintarDetalle(d.datos);
+      $("detalleSheet").classList.add("show");
+    } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  function filaDet(l, v) { return (v || v === 0) && v !== "" ? '<div class="r"><span>' + esc(l) + '</span><b>' + esc(String(v)) + '</b></div>' : ''; }
+  function pintarDetalle(x) {
+    $("detTitulo").textContent = x.nombre_activacion || "Activación";
+    // Equipo de trabajo
+    let trab = "";
+    String(x.trabajadores_detalle || "").split(";").forEach((p) => {
+      const a = p.trim().split("|"); if (!a[0]) return;
+      trab += '<div class="userline"><span><b>' + esc(a[0]) + '</b>' + (a[1] ? ' · ' + esc(a[1]) : '') +
+        '<br><small style="color:var(--gris)">' + esc(a[2] || "") + '</small></span></div>';
+    });
+    if (!trab) trab = '<div class="vacio">No se registró el equipo de trabajo.</div>';
+    // Insumos a llevar (checklist)
+    let chk = "";
+    String(x.checklist || "").split(";").forEach((p) => {
+      const t = p.trim(); if (!t) return; const i = t.indexOf(":");
+      chk += '<div class="r"><span>' + esc(i >= 0 ? t.slice(0, i) : t) + '</span><b>' + esc(i >= 0 ? t.slice(i + 1).trim() : "") + '</b></div>';
+    });
+    if (!chk) chk = '<div class="vacio">Sin insumos en el checklist.</div>';
+    // Gin
+    let gin;
+    if (x.formato === "Granel") gin = (x.granel_ini || 0) + " L (granel)";
+    else if (x.formato === "Ambas") gin = (x.botellas_ini || 0) + " bot. + " + (x.granel_ini || 0) + " L";
+    else gin = (x.botellas_ini || 0) + " botellas";
+    $("detBody").innerHTML =
+      '<div class="resumen">' +
+      filaDet("Estado", x.estado) +
+      filaDet("Fecha", x.fecha) +
+      filaDet("Horario", (x.hora_inicio || "") + (x.hora_fin ? " a " + x.hora_fin : "")) +
+      filaDet("Lugar", (x.lugar || "") + (x.comuna ? " · " + x.comuna : "")) +
+      filaDet("Registró", x.registrado_por) +
+      '</div>' +
+      '<div class="titulo" style="font-size:15px;margin-top:14px">👥 Personas a contratar (' + (x.personal_cantidad || 0) + ')</div>' +
+      trab +
+      '<div class="titulo" style="font-size:15px;margin-top:14px">📦 Insumos a llevar</div>' +
+      chk +
+      '<div class="titulo" style="font-size:15px;margin-top:14px">🍸 Gin y otros</div>' +
+      '<div class="resumen">' +
+      filaDet("Formato", x.formato) +
+      filaDet("Gin", gin) +
+      filaDet("Botellas a rellenar", x.botellas_rellenadas) +
+      filaDet("Personas invitadas", x.personas_invitadas) +
+      filaDet("Hielo lo pone el cliente", x.hielo_cliente ? "Sí" : "") +
+      filaDet("Tónica la pone el cliente", x.tonica_cliente ? "Sí" : "") +
+      filaDet("Contactos nuevos", x.contactos_nuevos) +
+      filaDet("Fotos subidas", x.n_fotos) +
+      '</div>';
   }
 
   // ===== Panel de administración =====
@@ -698,11 +793,14 @@
     let html = '<h4>' + d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long" }) + '</h4>';
     if (!items.length) html += '<div class="vacio">Sin activaciones este día.</div>';
     else html += items.map((v, i) => '<div class="hcard"><div class="izq"><div class="cli">' + esc(v.nombre_activacion || "") + '</div><div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") + (v.hora_inicio ? " · " + esc(v.hora_inicio) : "") + '</div></div>' +
-      '<div class="der"><button class="mini calIcs" data-i="' + i + '" style="background:#3a3a3a">📅 Mi calendario</button></div></div>').join("");
+      '<div class="der" style="display:flex;flex-direction:column;gap:6px">' +
+      (v.id ? '<button class="mini verAct" data-id="' + esc(v.id) + '" style="background:#2a2a2a">👁 Ver</button>' : '') +
+      '<button class="mini calIcs" data-i="' + i + '" style="background:#3a3a3a">📅 Mi calendario</button></div></div>').join("");
     html += '<button class="cal-add" data-f="' + f + '">➕ Agregar activación este día</button>';
     $("calDia").innerHTML = html;
     $("calDia").querySelector(".cal-add").addEventListener("click", () => nuevaEnFecha(f));
     $("calDia").querySelectorAll(".calIcs").forEach((b) => b.addEventListener("click", () => agregarAlCalendario(items[+b.dataset.i])));
+    $("calDia").querySelectorAll(".verAct").forEach((b) => b.addEventListener("click", () => verDetalle(b.dataset.id)));
   }
   // Genera una cita .ics y la descarga → el teléfono ofrece guardarla en su calendario (iPhone/Android)
   function icsFecha(fecha, hora) {
@@ -762,6 +860,12 @@
     // ventas
     $("vAdd").addEventListener("click", agregarVenta);
     $("vPrecio").addEventListener("blur", () => pintarPesos($("vPrecio")));
+    // equipo de trabajo
+    $("tAdd").addEventListener("click", agregarTrabajador);
+    $("tRut").addEventListener("keydown", (e) => { if (e.key === "Enter") agregarTrabajador(); });
+    // detalle (solo lectura)
+    $("cerrarDetalle").addEventListener("click", () => $("detalleSheet").classList.remove("show"));
+    $("detalleSheet").addEventListener("click", (e) => { if (e.target === $("detalleSheet")) $("detalleSheet").classList.remove("show"); });
     // checklist
     buildChecklist();
     $("toggleChecklist").addEventListener("click", () => { const b = $("checklistBox"); const show = b.style.display === "none"; b.style.display = show ? "" : "none"; $("toggleChecklist").textContent = show ? "▲ Ocultar checklist" : "▼ Mostrar checklist"; });

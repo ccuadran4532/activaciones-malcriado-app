@@ -115,6 +115,20 @@
       <div class="campo crece"><label>Gasto en adicionales ($)</label><input type="text" id="f_adic" inputmode="numeric" placeholder="$0"></div>
     </div>
 
+    <!-- Equipo de trabajo (Nombre, RUT, Función) -->
+    <div class="campo"><label>Equipo de trabajo (nombre, RUT y función)</label></div>
+    <div class="foto-count" style="margin:-6px 0 8px">Agrega a cada persona. La cantidad a contratar se completa sola.</div>
+    <div class="fila">
+      <div class="campo crece"><label>Nombre</label><input type="text" id="tNombre" placeholder="Nombre y apellido"></div>
+      <div class="campo crece"><label>RUT</label><input type="text" id="tRut" placeholder="12.345.678-9"></div>
+    </div>
+    <div class="fila">
+      <div class="campo crece"><label>Función</label>
+        <select id="tFuncion"><option>Bartender</option><option>Colaborador</option><option>Promotor</option></select></div>
+      <div class="campo angosto" style="display:flex;align-items:flex-end;padding-bottom:13px"><button class="btn-sec" id="tAdd" style="margin:0">Agregar</button></div>
+    </div>
+    <div id="tLista"></div>
+
     <!-- 3. Control de Gin -->
     <div class="titulo" style="margin-top:18px;font-size:18px">Control de Gin Malcriado</div>
     <div class="seg">
@@ -286,6 +300,16 @@
       <li>3. Toca <b>"Instalar aplicación"</b> (o "Agregar a pantalla de inicio").</li>
     </ul>
     <button class="guardar" id="cerrarInstall" style="margin-top:8px">Entendido</button>
+  </div>
+</div>
+
+<!-- Detalle / reporte de una activación (solo lectura) -->
+<div class="sheet" id="detalleSheet">
+  <div class="card">
+    <h3 id="detTitulo">Activación</h3>
+    <p>Lo que se registró para llevar a esta activación (solo lectura).</p>
+    <div id="detBody"></div>
+    <button class="btn-sec" id="cerrarDetalle" style="margin-top:16px">Cerrar</button>
   </div>
 </div>
 

@@ -16,7 +16,7 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
   "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas",
   "Hielo kg","Tonica L","Checklist insumos","Aviso 3d","Aviso dia",
-  "IG inicio","IG fin","IG ganados"];
+  "IG inicio","IG fin","IG ganados","Trabajadores detalle"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -107,7 +107,8 @@ function doPost(e){
       case "guardar_activacion": return responder_(guardarActivacion_(u, data)); // identidad real
       case "get_activacion":     return responder_(getActivacion_(data));
       case "editar_activacion":  return responder_(editarActivacion_(data));
-      case "historial":          return responder_(historial_(u));               // ve solo lo suyo (admin = todo)
+      case "historial":          return responder_(historial_(u));               // todos ven todas (solo lectura)
+      case "ver_activacion":     return responder_(getActivacion_(data));         // detalle solo lectura (cualquier usuario)
       case "revisar_activacion": return responder_(revisarActivacion_(data));
       case "get_config":         return responder_({ok:true, config:getConfig_()});
       case "set_config":         return responder_(setConfig_(data));
@@ -466,7 +467,8 @@ function guardarActivacion_(auth, data){
     d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
     d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
     Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no",
-    (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||"") ];
+    (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||""),
+    d.trabajadores_detalle||"" ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -480,11 +482,13 @@ function historial_(u){
   var lista=[];
   d.forEach(function(r){
     var estado=r[COL_ESTADO-1]||"aprobado";
+    var mio = String(r[20]).toLowerCase()===miEmail;
     var row={ id:r[COL_ID-1], fecha:r[1], nombre_activacion:r[2], lugar:r[3], comuna:r[4],
       gin_consumido:r[16], costo_total:r[18], registrado_por:r[19], usuario_email:r[20], estado:estado,
-      ig_ganados:(r[45]===""?null:Number(r[45])), hora_inicio:r[25], hora_fin:r[26] };
-    // Admin ve todo; usuario ve solo lo suyo
-    if (esAdmin || String(r[20]).toLowerCase()===miEmail) lista.push(row);
+      personal_cantidad:r[10], ig_ganados:(r[45]===""?null:Number(r[45])), hora_inicio:r[25], hora_fin:r[26],
+      mio:mio };
+    // Todos ven todas las activaciones (solo lectura). 'mio' marca las propias.
+    lista.push(row);
   });
   return {ok:true, lista:lista.reverse()};
 }
@@ -503,7 +507,8 @@ function getActivacion_(data){
       hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35],
       ventas_detalle:r[36], ingreso_ventas:r[37],
       hielo_kg:r[38], tonica_litros:r[39], checklist:r[40],
-      ig_inicio:r[43], ig_fin:r[44] }};
+      ig_inicio:r[43], ig_fin:r[44], trabajadores_detalle:r[46],
+      estado:(r[COL_ESTADO-1]||"aprobado"), usuario_email:r[20], n_fotos:r[22], carpeta_fotos:r[21] }};
   }
   return {ok:false,error:"No encontrada"};
 }
@@ -524,6 +529,7 @@ function editarActivacion_(data){
       d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
       Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ]]);
     sh.getRange(fila,44,1,3).setValues([[ (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||"") ]]);
+    sh.getRange(fila,47).setValue(d.trabajadores_detalle||"");
     sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
     return {ok:true};
   }

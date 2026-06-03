@@ -177,7 +177,8 @@ const datos = {
   granel_ini: 5, granel_sob: 2, botellas_rellenadas: 4, hielo_cliente: true, tonica_cliente: false,
   contactos_nuevos: "Pedro 12345", ventas_detalle: "Cóctel x3 $5000; Jigger x2 $8000", ingreso_ventas: 31000,
   checklist: "Hielo: 20 kg; Mesa: 2 u", hielo_kg: 20, tonica_litros: 12,
-  ig_inicio: 4944, ig_fin: 4981, ig_ganados: 37
+  ig_inicio: 4944, ig_fin: 4981, ig_ganados: 37,
+  trabajadores_detalle: "Ana Pérez|11.111.111-1|Bartender; Luis Soto|22.222.222-2|Promotor"
 };
 r = call({ clave: CL, accion: "guardar_activacion", token: TOKEN, datos: datos, fotos: [] });
 ok(r.ok === true, "guardar_activacion ok");
@@ -205,6 +206,13 @@ ok(Number(g.datos.ingreso_ventas) === 31000, "ingreso round-trip");
 ok(g.datos.checklist === "Hielo: 20 kg; Mesa: 2 u", "checklist round-trip");
 ok(Number(g.datos.hielo_kg) === 20 && Number(g.datos.tonica_litros) === 12, "hielo/tonica round-trip");
 ok(Number(g.datos.ig_inicio) === 4944 && Number(g.datos.ig_fin) === 4981, "IG round-trip");
+ok(g.datos.trabajadores_detalle === "Ana Pérez|11.111.111-1|Bartender; Luis Soto|22.222.222-2|Promotor", "trabajadores round-trip");
+
+// 4b) ver_activacion (solo lectura) accesible y con trabajadores + estado
+let vd = call({ clave: CL, accion: "ver_activacion", token: TOKEN, id: ID });
+ok(vd.ok && vd.datos && vd.datos.nombre_activacion === "Bar La Mar", "ver_activacion devuelve detalle");
+ok(/Ana Pérez/.test(vd.datos.trabajadores_detalle), "ver_activacion incluye equipo de trabajo");
+ok(!!vd.datos.estado, "ver_activacion incluye estado");
 
 // 5) Editar activación
 console.log("5) Editar activación (admin)");
@@ -264,10 +272,17 @@ ok(mailsEnviados.some((m) => m.to === "sofia@x.com"), "se envió la clave tempor
 let lu = call({ clave: CL, accion: "listar_usuarios", token: TOKEN });
 ok(lu.ok && lu.lista.length === 3, "hay 3 usuarios (carlos, diego, sofia)");
 
-// 11) Historial: usuario solo ve lo suyo
-console.log("11) Historial filtrado por usuario");
+// 11) Historial: todos ven todas (con marca 'mio'); usuario no puede editar lo ajeno
+console.log("11) Historial compartido (solo lectura para lo ajeno)");
 const hDiego = call({ clave: CL, accion: "historial", token: TOKEN_DIEGO });
-ok(hDiego.ok && hDiego.lista.length === 0, "diego no ve activaciones de carlos");
+ok(hDiego.ok && hDiego.lista.length === 1, "diego ve la activación de carlos");
+ok(hDiego.lista[0].mio === false, "para diego esa activación NO es suya (mio=false)");
+// Diego puede VER el detalle (solo lectura) de la activación ajena
+const vDiego = call({ clave: CL, accion: "ver_activacion", token: TOKEN_DIEGO, id: ID });
+ok(vDiego.ok && vDiego.datos.nombre_activacion === "Bar La Mar EDITADO", "diego ve el detalle (solo lectura)");
+// Pero NO puede editarla (acción de admin)
+const eDiego = call({ clave: CL, accion: "editar_activacion", token: TOKEN_DIEGO, id: ID, datos: datos });
+ok(eDiego.ok === false && /autorizado/i.test(eDiego.error), "diego no puede editar lo ajeno");
 
 console.log("\n=== RESULTADO: " + PASS + " OK, " + FAIL + " fallas ===\n");
 process.exit(FAIL ? 1 : 0);
