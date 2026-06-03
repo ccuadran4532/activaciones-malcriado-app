@@ -32,24 +32,74 @@ function autorizar(){
   return "OK, permisos concedidos (incluye correo)";
 }
 
+// Acciones que SOLO puede ejecutar un administrador
+var SOLO_ADMIN = ["crear_usuario","listar_usuarios","aprobar_usuario","activar_usuario",
+  "get_config","set_config","get_activacion","editar_activacion","eliminar_activacion","revisar_activacion"];
+
+// Rate limit con CacheService: max solicitudes por 'key' en 'win' segundos
+function rateOk_(key, max, win){
+  try{
+    var c = CacheService.getScriptCache(), k = "rl_" + key;
+    var n = parseInt(c.get(k) || "0", 10);
+    if (n >= max) return false;
+    c.put(k, String(n + 1), win);
+    return true;
+  }catch(e){ return true; }
+}
+
+// Identifica al usuario REAL por su token (no se cree lo que mande el cliente)
+function authUser_(data){
+  var t = data && data.token; if (!t) return null;
+  var u = uSheet_(), n = u.getLastRow(); if (n < 2) return null;
+  var d = u.getRange(2,1,n-1,8).getValues();
+  for (var i=0;i<d.length;i++){
+    if (d[i][7] && String(d[i][7]) === String(t)){
+      if (d[i][4] === false) return null;                 // inactivo
+      if ((d[i][6] || "aprobado") !== "aprobado") return null; // no aprobado
+      return { email:String(d[i][1]).toLowerCase(), nombre:d[i][0], rol:d[i][3]||"usuario" };
+    }
+  }
+  return null;
+}
+
 function doPost(e){
   try{
     var data = JSON.parse(e.postData.contents);
     if (data.clave !== prop_("CLAVE")) return responder_({ok:false,error:"Clave incorrecta"});
-    switch(data.accion){
-      case "login":              return responder_(login_(data));
-      case "registrar":          return responder_(registrar_(data));
-      case "verificar_codigo":   return responder_(verificarCodigo_(data));
+    var accion = data.accion;
+
+    // 1) Acciones PUBLICAS (sin sesion) — con limite anti-abuso
+    if (accion === "login" || accion === "registrar" || accion === "verificar_codigo"){
+      if (!rateOk_("pub_" + (data.email||"x").toLowerCase(), 8, 60))
+        return responder_({ok:false,error:"Demasiados intentos. Espera un minuto."});
+      if (accion === "login")            return responder_(login_(data));
+      if (accion === "registrar")        return responder_(registrar_(data));
+      if (accion === "verificar_codigo") return responder_(verificarCodigo_(data));
+    }
+
+    // 2) De aqui en adelante se requiere SESION (token valido)
+    var u = authUser_(data);
+    if (!u) return responder_({ok:false, error:"Sesion invalida. Vuelve a iniciar sesion.", auth:false});
+
+    // Rate limit por usuario
+    if (!rateOk_("u_" + u.email, 120, 60))
+      return responder_({ok:false,error:"Demasiadas solicitudes. Espera un momento."});
+
+    // 3) Bloqueo de funciones de admin (config, claves, gestion)
+    if (SOLO_ADMIN.indexOf(accion) >= 0 && u.rol !== "admin")
+      return responder_({ok:false, error:"No autorizado. Solo el administrador puede hacer esto."});
+
+    switch(accion){
       case "crear_usuario":      return responder_(crearUsuario_(data));
       case "eliminar_activacion":return responder_(eliminarActivacion_(data));
-      case "cambiar_pass":       return responder_(cambiarPass_(data));
+      case "cambiar_pass":       return responder_(cambiarPass_(u, data));       // solo su propia clave
       case "listar_usuarios":    return responder_(listarUsuarios_());
       case "aprobar_usuario":    return responder_(aprobarUsuario_(data));
       case "activar_usuario":    return responder_(activarUsuario_(data));
-      case "guardar_activacion": return responder_(guardarActivacion_(data));
+      case "guardar_activacion": return responder_(guardarActivacion_(u, data)); // identidad real
       case "get_activacion":     return responder_(getActivacion_(data));
       case "editar_activacion":  return responder_(editarActivacion_(data));
-      case "historial":          return responder_(historial_(data));
+      case "historial":          return responder_(historial_(u));               // ve solo lo suyo (admin = todo)
       case "revisar_activacion": return responder_(revisarActivacion_(data));
       case "get_config":         return responder_({ok:true, config:getConfig_()});
       case "set_config":         return responder_(setConfig_(data));
@@ -77,7 +127,7 @@ function asegurarHojas_(ss){
   act.setFrozenRows(1);
   var u = ss.getSheetByName("Usuarios");
   if (!u){ u = ss.insertSheet("Usuarios"); }
-  u.getRange(1,1,1,7).setValues([["Nombre","Email","PassHash","Rol","Activo","Creado","Estado"]]).setFontWeight("bold");
+  u.getRange(1,1,1,8).setValues([["Nombre","Email","PassHash","Rol","Activo","Creado","Estado","Token"]]).setFontWeight("bold");
   u.setFrozenRows(1);
   if (!ss.getSheetByName("Config")){
     var c = ss.insertSheet("Config");
@@ -134,8 +184,9 @@ function login_(data){
   var u = uSheet_(); var n = u.getLastRow();
   // Bootstrap: si no hay usuarios, el primero queda ADMIN aprobado.
   if (n < 2){
-    u.appendRow([data.email.split("@")[0], (data.email||"").toLowerCase(), hashPass_(data.pass), "admin", true, new Date(), "aprobado"]);
-    return {ok:true, usuario:{nombre:data.email.split("@")[0], email:(data.email||"").toLowerCase(), rol:"admin"}};
+    var tk0 = Utilities.getUuid();
+    u.appendRow([data.email.split("@")[0], (data.email||"").toLowerCase(), hashPass_(data.pass), "admin", true, new Date(), "aprobado", tk0]);
+    return {ok:true, usuario:{nombre:data.email.split("@")[0], email:(data.email||"").toLowerCase(), rol:"admin"}, token:tk0};
   }
   var datos = u.getRange(2,1,n-1,7).getValues();
   var email = (data.email||"").toLowerCase();
@@ -145,7 +196,11 @@ function login_(data){
       if (estado === "pendiente") return {ok:false,error:"Tu cuenta esta pendiente de aprobacion del administrador"};
       if (estado === "rechazado") return {ok:false,error:"Tu cuenta fue rechazada"};
       if (datos[i][4] === false) return {ok:false,error:"Tu cuenta esta desactivada"};
-      if (verifyPass_(data.pass, datos[i][2])) return {ok:true, usuario:{nombre:datos[i][0], email:email, rol:datos[i][3]||"usuario"}};
+      if (verifyPass_(data.pass, datos[i][2])){
+        var tk = Utilities.getUuid();
+        u.getRange(2+i, 8).setValue(tk);   // guarda el token de sesion
+        return {ok:true, usuario:{nombre:datos[i][0], email:email, rol:datos[i][3]||"usuario"}, token:tk};
+      }
       return {ok:false,error:"Contrasena incorrecta"};
     }
   }
@@ -206,12 +261,12 @@ function crearUsuario_(data){
   uSheet_().appendRow([data.nombre, email, hashPass_(data.pass), data.rol||"usuario", true, new Date(), "aprobado"]);
   return {ok:true};
 }
-function cambiarPass_(data){
-  var u=uSheet_(), n=u.getLastRow(); if(n<2)return{ok:false,error:"No hay usuarios"};
-  var d=u.getRange(2,1,n-1,7).getValues(), email=(data.email||"").toLowerCase();
+function cambiarPass_(auth, data){
+  var sh=uSheet_(), n=sh.getLastRow(); if(n<2)return{ok:false,error:"No hay usuarios"};
+  var d=sh.getRange(2,1,n-1,7).getValues(), email=auth.email;   // solo SU propia clave
   for(var i=0;i<d.length;i++) if(String(d[i][1]).toLowerCase()===email){
     if(!verifyPass_(data.pass_actual,d[i][2])) return{ok:false,error:"Tu contrasena actual no es correcta"};
-    u.getRange(2+i,3).setValue(hashPass_(data.pass_nueva)); return{ok:true};
+    sh.getRange(2+i,3).setValue(hashPass_(data.pass_nueva)); return{ok:true};
   }
   return{ok:false,error:"Usuario no encontrado"};
 }
@@ -238,7 +293,7 @@ function activarUsuario_(data){
 }
 
 /* ---------- Activaciones ---------- */
-function guardarActivacion_(data){
+function guardarActivacion_(auth, data){
   var ss=planilla_(), sh=ss.getSheetByName("Activaciones"), d=data.datos||{};
   var fotosRoot=subcarpeta_(raiz_(),"Fotos");
   var fecha=d.fecha||Utilities.formatDate(new Date(),"GMT-4","yyyy-MM-dd");
@@ -251,18 +306,18 @@ function guardarActivacion_(data){
   var fila=[ new Date(),fecha,d.nombre_activacion||"",d.lugar||"",d.comuna||"",d.persona_branican||"",d.quien_contacto||"",
     d.contacto_futuro_nombre||"",d.contacto_futuro_dato||"",Number(d.personas_invitadas)||0,Number(d.personal_cantidad)||0,
     Number(d.pago_personal)||0,Number(d.gasto_adicionales)||0,d.formato||"",Number(d.gin_inicial)||0,Number(d.gin_sobrante)||0,
-    Number(d.gin_consumido)||0,Number(d.gin_cortesia)||0,Number(d.costo_total)||0,d.registrado_por||"",d.usuario_email||"",
+    Number(d.gin_consumido)||0,Number(d.gin_cortesia)||0,Number(d.costo_total)||0,d.registrado_por||auth.nombre,auth.email,
     carpeta.getUrl(),nFotos,estado,id ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
   return {ok:true, fotos:nFotos, pendiente:requiere};
 }
-function historial_(data){
+function historial_(u){
   var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:true,lista:[]};
   var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
-  var esAdmin = data && data.rol === "admin";
-  var miEmail = data ? String(data.email||"").toLowerCase() : "";
+  var esAdmin = u && u.rol === "admin";
+  var miEmail = u ? String(u.email||"").toLowerCase() : "";
   var lista=[];
   d.forEach(function(r){
     var estado=r[COL_ESTADO-1]||"aprobado";

@@ -18,6 +18,8 @@
     set key(v) { localStorage.setItem("api_key", (v || "").trim()); },
     get user() { try { return JSON.parse(localStorage.getItem("usuario") || "null"); } catch (e) { return null; } },
     set user(v) { v ? localStorage.setItem("usuario", JSON.stringify(v)) : localStorage.removeItem("usuario"); },
+    get token() { return localStorage.getItem("token") || ""; },
+    set token(v) { v ? localStorage.setItem("token", v) : localStorage.removeItem("token"); },
   };
 
   const fmt = (n) => "$" + Math.round(n || 0).toLocaleString("es-CL");
@@ -58,12 +60,16 @@
   async function postCerebro(payload) {
     if (!store.url) throw new Error("Falta configurar la conexión (⚙︎)");
     payload.clave = store.key;
+    payload.token = store.token;   // identidad de sesión
     const resp = await fetch(store.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS
       body: JSON.stringify(payload)
     });
-    return await resp.json();
+    const data = await resp.json();
+    // Si la sesión ya no es válida, cierra sesión y vuelve al login
+    if (data && data.auth === false && usuario) { toast("Tu sesión expiró, entra de nuevo", "bad"); logout(); }
+    return data;
   }
 
   // ===== Ticket OK + Botella que se desvanece (igual que app de ventas) =====
@@ -96,7 +102,7 @@
     try {
       const d = await postCerebro({ accion: "login", email: email, pass: pass });
       if (d && d.ok && d.usuario) {
-        usuario = d.usuario; store.user = usuario;
+        usuario = d.usuario; store.user = usuario; store.token = d.token || "";
         msg.textContent = "";
         entrarApp(true);
       } else {
@@ -119,7 +125,7 @@
   }
 
   function logout() {
-    usuario = null; store.user = null;
+    usuario = null; store.user = null; store.token = "";
     cerrarSheet();
     $("vistaApp").style.display = "none";
     $("vistaLogin").style.display = "flex";
