@@ -228,3 +228,7 @@ input,button,select{font-family:inherit;}
 .cele-txt{font-size:18px;font-weight:700;color:#fff;}
 .cele-sub{font-size:14px;color:var(--gris);margin-top:6px;}
 @keyframes celePop{from{transform:scale(1) rotate(-3deg);}to{transform:scale(1.12) rotate(3deg);}}
+
+/* Día con activación en el calendario */
+.cal-cell.tiene{background:rgba(225,37,27,.16);border-color:var(--rojo);border-bottom:4px solid var(--rojo);font-weight:800;color:#fff;}
+.cal-add{width:100%;border:0;border-radius:14px;padding:14px;background:var(--rojo);color:#fff;font-size:16px;font-weight:800;cursor:pointer;margin-top:12px;box-shadow:0 6px 18px rgba(225,37,27,.45);}

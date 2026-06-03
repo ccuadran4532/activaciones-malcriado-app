@@ -686,7 +686,7 @@
     for (let d = 1; d <= dias; d++) {
       const f = calY + "-" + String(calM + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const cnt = porDia[f] || 0;
-      html += '<div class="cal-cell' + (f === hoy ? " hoy" : "") + '" data-f="' + f + '">' + d + (cnt ? '<div class="dot"></div>' : "") + (cnt > 1 ? '<div class="num2">' + cnt + '</div>' : "") + '</div>';
+      html += '<div class="cal-cell' + (f === hoy ? " hoy" : "") + (cnt ? " tiene" : "") + '" data-f="' + f + '">' + d + (cnt > 1 ? '<div class="num2">' + cnt + '</div>' : "") + '</div>';
     }
     $("calGrid").innerHTML = html;
     $("calGrid").querySelectorAll(".cal-cell[data-f]").forEach((c) => c.addEventListener("click", () => verDia(c.dataset.f)));
@@ -698,7 +698,17 @@
     let html = '<h4>' + d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long" }) + '</h4>';
     if (!items.length) html += '<div class="vacio">Sin activaciones este día.</div>';
     else html += items.map((v) => '<div class="hcard"><div class="izq"><div class="cli">' + esc(v.nombre_activacion || "") + '</div><div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") + '</div></div><div class="der"><div class="fecha">' + esc(v.registrado_por || "") + '</div></div></div>').join("");
+    html += '<button class="cal-add" data-f="' + f + '">➕ Agregar activación este día</button>';
     $("calDia").innerHTML = html;
+    $("calDia").querySelector(".cal-add").addEventListener("click", () => nuevaEnFecha(f));
+  }
+  function nuevaEnFecha(f) {
+    if (editandoId) salirEdicion();
+    limpiarFormulario();
+    $("f_fecha").value = f;
+    mostrarVista("form");
+    window.scrollTo(0, 0);
+    toast("Nueva activación para el " + f, "ok");
   }
   function calMover(delta) { calM += delta; if (calM < 0) { calM = 11; calY--; } if (calM > 11) { calM = 0; calY++; } renderCalendario(); }
 
