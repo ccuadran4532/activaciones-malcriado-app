@@ -208,6 +208,35 @@
     $("fotoCount").textContent = fotos.length + " / 10 fotos" + (fotos.length === 0 ? " — sube al menos 1." : "");
   }
 
+  // ===== Ventas (precio editable) =====
+  let ventas = [];
+  function agregarVenta() {
+    let item = $("vItem").value;
+    if (item === "Otro") { const x = window.prompt("Nombre del producto:"); if (!x || !x.trim()) return; item = x.trim(); }
+    const cant = soloInt($("vCant").value) || 1, precio = soloInt($("vPrecio").value) || 0;
+    if (precio <= 0) { toast("Ingresa un precio", "bad"); return; }
+    ventas.push({ item: item, cant: cant, precio: precio });
+    $("vPrecio").value = ""; $("vCant").value = "1";
+    renderVentas();
+  }
+  function renderVentas() {
+    const c = $("vLista");
+    c.innerHTML = ventas.map((v, i) => '<div class="userline"><span>' + esc(v.item) + ' × ' + v.cant + ' · ' + fmt(v.precio) + '</span><span><b>' + fmt(v.cant * v.precio) + '</b> &nbsp;<button class="mini bad delV" data-i="' + i + '">✕</button></span></div>').join("");
+    c.querySelectorAll(".delV").forEach((b) => b.addEventListener("click", () => { ventas.splice(+b.dataset.i, 1); renderVentas(); }));
+    $("vTotal").textContent = fmt(ventasTotal());
+    $("vResumen").style.display = ventas.length ? "" : "none";
+  }
+  function ventasTotal() { return ventas.reduce((s, v) => s + v.cant * v.precio, 0); }
+  function ventasTexto() { return ventas.map((v) => v.item + " x" + v.cant + " $" + v.precio).join("; "); }
+  function parseVentas(txt) {
+    ventas = [];
+    String(txt || "").split(";").forEach((p) => {
+      const m = p.trim().match(/^(.*) x(\d+) \$(\d+)$/);
+      if (m) ventas.push({ item: m[1], cant: +m[2], precio: +m[3] });
+    });
+    renderVentas();
+  }
+
   // ===== Guardar activación =====
   function validar() {
     const req = [["f_nombre", "el nombre de la activación"], ["f_lugar", "el lugar"], ["f_comuna", "la comuna"],
@@ -245,7 +274,8 @@
       granel_ini: soloNum($("f_gra_ini").value), granel_sob: soloNum($("f_gra_sob").value),
       botellas_rellenadas: soloInt($("f_rellenadas").value),
       hielo_cliente: $("f_hielo_cli").checked, tonica_cliente: $("f_tonica_cli").checked,
-      contactos_nuevos: $("f_contactos_nuevos").value.trim()
+      contactos_nuevos: $("f_contactos_nuevos").value.trim(),
+      ventas_detalle: ventasTexto(), ingreso_ventas: ventasTotal()
     };
     // Modo edición (admin): actualiza y vuelve, sin animación de ticket
     if (editandoId) {
@@ -282,6 +312,7 @@
      "f_rellenadas", "f_cortesia", "f_contactos_nuevos"].forEach((id) => ($(id).value = ""));
     $("f_hielo_cli").checked = false; $("f_tonica_cli").checked = false;
     $("f_hora_ini").value = "20:00"; $("f_hora_fin").value = "23:00";
+    ventas = []; renderVentas();
     fotos = []; renderFotos(); setFormato("Botellas");
     $("f_fecha").value = new Date().toISOString().slice(0, 10);
     recalcular();
@@ -416,6 +447,7 @@
       $("f_hora_ini").value = x.hora_inicio || "20:00"; $("f_hora_fin").value = x.hora_fin || "23:00";
       $("f_hielo_cli").checked = !!x.hielo_cliente; $("f_tonica_cli").checked = !!x.tonica_cliente;
       $("f_contactos_nuevos").value = x.contactos_nuevos || "";
+      parseVentas(x.ventas_detalle);
       $("f_registra").value = x.registrado_por || "";
       fotos = []; renderFotos();
       editandoId = id;
@@ -595,6 +627,9 @@
     // fotos
     $("addFoto").addEventListener("click", pedirFotos);
     $("fileInput").addEventListener("change", (e) => { aceptarFotos(e.target.files); e.target.value = ""; });
+    // ventas
+    $("vAdd").addEventListener("click", agregarVenta);
+    $("vPrecio").addEventListener("blur", () => pintarPesos($("vPrecio")));
     // guardar
     $("btnGuardar").addEventListener("click", pedirConfirmacion);
     $("btnConfirmar").addEventListener("click", guardarDefinitivo);

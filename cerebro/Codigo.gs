@@ -14,7 +14,7 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Registrado por","Usuario email","Carpeta fotos","N fotos","Estado","ID",
   "Hora inicio","Hora fin","Duracion horas","Botellas inicial","Botellas sobrante",
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
-  "Tonica la pone cliente","Contactos nuevos"];
+  "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -363,7 +363,8 @@ function guardarActivacion_(auth, data){
     carpeta.getUrl(),nFotos,estado,id,
     d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
     Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
-    d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"" ];
+    d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
+    d.ventas_detalle||"", Number(d.ingreso_ventas)||0 ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -396,7 +397,8 @@ function getActivacion_(data){
       gin_inicial:r[14], gin_sobrante:r[15], gin_consumido:r[16], gin_cortesia:r[17], costo_total:r[18], registrado_por:r[19],
       hora_inicio:r[25], hora_fin:r[26], duracion_horas:r[27], botellas_ini:r[28], botellas_sob:r[29],
       granel_ini:r[30], granel_sob:r[31], botellas_rellenadas:r[32],
-      hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35] }};
+      hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35],
+      ventas_detalle:r[36], ingreso_ventas:r[37] }};
   }
   return {ok:false,error:"No encontrada"};
 }
@@ -411,9 +413,10 @@ function editarActivacion_(data){
       Number(d.personas_invitadas)||0, Number(d.personal_cantidad)||0, Number(d.pago_personal)||0, Number(d.gasto_adicionales)||0,
       d.formato||"", Number(d.gin_inicial)||0, Number(d.gin_sobrante)||0, Number(d.gin_consumido)||0, Number(d.gin_cortesia)||0,
       Number(d.costo_total)||0, d.registrado_por||"" ]]);
-    sh.getRange(fila,26,1,11).setValues([[ d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
+    sh.getRange(fila,26,1,13).setValues([[ d.hora_inicio||"", d.hora_fin||"", Number(d.duracion_horas)||0, Number(d.botellas_ini)||0, Number(d.botellas_sob)||0,
       Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
-      d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"" ]]);
+      d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
+      d.ventas_detalle||"", Number(d.ingreso_ventas)||0 ]]);
     sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
     return {ok:true};
   }
