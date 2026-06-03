@@ -157,16 +157,20 @@
   function recalcular() {
     const botCons = Math.max(soloNum($("f_bot_ini").value) - soloNum($("f_bot_sob").value), 0);
     const graCons = Math.max(soloNum($("f_gra_ini").value) - soloNum($("f_gra_sob").value), 0);
-    const costo = soloInt($("f_pago").value) + soloInt($("f_adic").value);
+    const pagoUnit = soloInt($("f_pago").value);
+    const nTrab = soloInt($("f_personal").value);
+    const pagoTotal = pagoUnit * nTrab; // pago por trabajador × cantidad
+    const costo = pagoTotal + soloInt($("f_adic").value);
     const horas = calcHoras();
     const litros = Math.round((botCons * 0.7 + graCons) * 100) / 100; // total en litros
     const txt = [];
     if (botCons) txt.push(botCons + " bot.");
     if (graCons) txt.push(graCons + " L granel");
     $("rConsumido").textContent = txt.length ? txt.join(" + ") : "0";
+    $("rPagoTotal").textContent = fmt(pagoTotal);
     $("rCosto").textContent = fmt(costo);
     $("rDuracion").textContent = horas ? (horas + " h") : "0 h";
-    return { botCons, graCons, litros, costo, horas };
+    return { botCons, graCons, litros, costo, horas, pagoTotal, pagoUnit };
   }
   function pintarPesos(input) { const n = soloInt(input.value); input.value = n > 0 ? "$" + n.toLocaleString("es-CL") : ""; }
 
@@ -305,7 +309,7 @@
       fecha: $("f_fecha").value, persona_branican: $("f_branican").value.trim(), quien_contacto: $("f_contacto").value.trim(),
       contacto_futuro_nombre: $("f_cfut_nom").value.trim(), contacto_futuro_dato: $("f_cfut_dato").value.trim(),
       personas_invitadas: soloInt($("f_invitados").value), personal_cantidad: soloInt($("f_personal").value),
-      pago_personal: soloInt($("f_pago").value), gasto_adicionales: soloInt($("f_adic").value),
+      pago_personal: c.pagoTotal, gasto_adicionales: soloInt($("f_adic").value),
       formato: formato,
       gin_inicial: soloNum($("f_bot_ini").value), gin_sobrante: soloNum($("f_bot_sob").value),
       gin_consumido: c.litros, gin_cortesia: soloNum($("f_cortesia").value), costo_total: c.costo,
@@ -482,7 +486,8 @@
       $("f_fecha").value = x.fecha || ""; $("f_branican").value = x.persona_branican || ""; $("f_contacto").value = x.quien_contacto || "";
       $("f_cfut_nom").value = x.contacto_futuro_nombre || ""; $("f_cfut_dato").value = x.contacto_futuro_dato || "";
       $("f_invitados").value = x.personas_invitadas || ""; $("f_personal").value = x.personal_cantidad || "";
-      $("f_pago").value = x.pago_personal ? ("$" + Number(x.pago_personal).toLocaleString("es-CL")) : "";
+      const _nT = Number(x.personal_cantidad) || 0, _perW = _nT ? Math.round((Number(x.pago_personal) || 0) / _nT) : 0;
+      $("f_pago").value = _perW ? ("$" + _perW.toLocaleString("es-CL")) : "";
       $("f_adic").value = x.gasto_adicionales ? ("$" + Number(x.gasto_adicionales).toLocaleString("es-CL")) : "";
       setFormato(["Botellas", "Granel", "Ambas"].indexOf(x.formato) >= 0 ? x.formato : "Botellas");
       $("f_bot_ini").value = x.botellas_ini || ""; $("f_bot_sob").value = x.botellas_sob || "";
@@ -687,7 +692,7 @@
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });
     $("bAmbas").addEventListener("click", () => { setFormato("Ambas"); recalcular(); });
     // cálculos en vivo
-    ["f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob", "f_pago", "f_adic", "f_hora_ini", "f_hora_fin"].forEach((id) => $(id).addEventListener("input", recalcular));
+    ["f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob", "f_pago", "f_adic", "f_personal", "f_hora_ini", "f_hora_fin"].forEach((id) => $(id).addEventListener("input", recalcular));
     $("f_pago").addEventListener("blur", () => pintarPesos($("f_pago")));
     $("f_adic").addEventListener("blur", () => pintarPesos($("f_adic")));
     // fotos
