@@ -160,14 +160,12 @@
     <div id="admUsuarios"></div>
 
     <div class="titulo" style="font-size:16px;margin-top:18px">Crear usuario</div>
+    <div class="foto-count" style="margin-bottom:8px">Se le enviará una <b>clave temporal por correo</b>; el usuario la cambia al entrar.</div>
     <div class="campo"><label>Nombre</label><input id="auNombre" type="text" placeholder="Nombre"></div>
-    <div class="fila">
-      <div class="campo crece"><label>Email</label><input id="auEmail" type="email" placeholder="correo@..."></div>
-      <div class="campo crece"><label>Contraseña</label><input id="auPass" type="text" placeholder="temporal"></div>
-    </div>
+    <div class="campo"><label>Email</label><input id="auEmail" type="email" placeholder="correo@..."></div>
     <div class="switch-row"><div class="info"><b>Es administrador</b></div>
       <label class="sw"><input type="checkbox" id="auAdmin"><span class="track"></span><span class="dot"></span></label></div>
-    <button class="btn-sec" id="btnAuCrear">Crear usuario</button>
+    <button class="btn-sec" id="btnAuCrear">Crear usuario y enviar clave</button>
     <div class="estado" id="auEstado"></div>
 
     <button class="btn-sec" id="btnCerrarAdmin" style="margin-top:24px">← Volver al formulario</button>

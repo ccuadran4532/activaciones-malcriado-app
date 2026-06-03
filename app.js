@@ -122,6 +122,10 @@
     recalcular();
     cargarHistorial();
     if (conAnimacion) mostrarTicket("¡Acceso OK!", "Bienvenido " + (usuario ? usuario.nombre.split(" ")[0] : ""), ["✓ Sesión iniciada"]);
+    // Clave temporal: obliga a cambiarla antes de operar
+    if (usuario && usuario.debe_cambiar) {
+      setTimeout(() => { abrirSheet(); toast("Cambia tu clave temporal para empezar a operar", "bad"); }, conAnimacion ? 4300 : 500);
+    }
   }
 
   function logout() {
@@ -320,7 +324,11 @@
     est.className = "estado"; est.textContent = "Cambiando…";
     try {
       const d = await postCerebro({ accion: "cambiar_pass", email: usuario.email, pass_actual: a, pass_nueva: b });
-      if (d && d.ok) { est.textContent = "✓ Contraseña actualizada"; $("cpActual").value = ""; $("cpNueva").value = ""; }
+      if (d && d.ok) {
+        est.textContent = "✓ Contraseña actualizada"; $("cpActual").value = ""; $("cpNueva").value = "";
+        if (usuario) { usuario.debe_cambiar = false; store.user = usuario; }
+        setTimeout(cerrarSheet, 1200);
+      }
       else { est.className = "estado bad"; est.textContent = (d && d.error) || "No se pudo cambiar"; }
     } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
   }
@@ -418,10 +426,19 @@
   }
   function renderUsuarios(lista) {
     const c = $("admUsuarios");
-    c.innerHTML = lista.map((u) => '<div class="userline"><span>' + esc(u.nombre) + ' · ' + esc(u.email) +
-      ' <span class="rolbadge ' + (u.rol === "admin" ? "admin" : "") + '">' + esc(u.rol) + '</span>' + (u.estado === "pendiente" ? ' <span class="rolbadge">pendiente</span>' : '') + '</span>' +
-      '<button class="mini ' + (u.activo ? "bad" : "ok") + '" data-e="' + esc(u.email) + '" data-a="' + (u.activo ? "0" : "1") + '">' + (u.activo ? "Desactivar" : "Activar") + '</button></div>').join("");
-    c.querySelectorAll("button.mini").forEach((b) => b.addEventListener("click", () => accionUsuario("activar_usuario", { email: b.dataset.e, activo: b.dataset.a === "1" })));
+    c.innerHTML = lista.map((u) =>
+      '<div class="userline"><span>' + esc(u.nombre) + ' · ' + esc(u.email) +
+      ' <span class="rolbadge ' + (u.rol === "admin" ? "admin" : "") + '">' + esc(u.rol) + '</span>' +
+      (u.estado === "pendiente" ? ' <span class="rolbadge">pendiente</span>' : '') +
+      (!u.activo ? ' <span class="rolbadge">bloqueado</span>' : '') + '</span>' +
+      '<span style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' +
+        '<button class="mini ' + (u.activo ? "bad" : "ok") + ' actToggle" data-e="' + esc(u.email) + '" data-a="' + (u.activo ? "0" : "1") + '">' + (u.activo ? "Bloquear" : "Activar") + '</button>' +
+        '<button class="mini editU" data-e="' + esc(u.email) + '" data-n="' + esc(u.nombre) + '" data-r="' + esc(u.rol) + '" style="background:#3a3a3a">Editar</button>' +
+        '<button class="mini delU bad" data-e="' + esc(u.email) + '">Eliminar</button>' +
+      '</span></div>').join("");
+    c.querySelectorAll("button.actToggle").forEach((b) => b.addEventListener("click", () => accionUsuario("activar_usuario", { email: b.dataset.e, activo: b.dataset.a === "1" })));
+    c.querySelectorAll("button.editU").forEach((b) => b.addEventListener("click", () => editarUsuarioAdmin(b.dataset.e, b.dataset.n, b.dataset.r)));
+    c.querySelectorAll("button.delU").forEach((b) => b.addEventListener("click", () => eliminarUsuarioAdmin(b.dataset.e)));
   }
   function renderActivPend(lista) {
     const c = $("admActiv");
@@ -446,14 +463,30 @@
   }
   async function crearUsuarioAdmin() {
     const est = $("auEstado");
-    const nombre = $("auNombre").value.trim(), email = $("auEmail").value.trim().toLowerCase(), pass = $("auPass").value, rol = $("auAdmin").checked ? "admin" : "usuario";
-    if (!nombre || !email || !pass) { est.className = "estado bad"; est.textContent = "Completa nombre, email y contraseña"; return; }
-    est.className = "estado"; est.textContent = "Creando…";
+    const nombre = $("auNombre").value.trim(), email = $("auEmail").value.trim().toLowerCase(), rol = $("auAdmin").checked ? "admin" : "usuario";
+    if (!nombre || !email) { est.className = "estado bad"; est.textContent = "Completa nombre y email"; return; }
+    est.className = "estado"; est.textContent = "Creando y enviando clave…";
     try {
-      const d = await postCerebro({ accion: "crear_usuario", nombre: nombre, email: email, pass: pass, rol: rol });
-      if (d && d.ok) { est.textContent = "✓ Usuario creado"; $("auNombre").value = $("auEmail").value = $("auPass").value = ""; $("auAdmin").checked = false; cargarAdmin(); }
+      const d = await postCerebro({ accion: "crear_usuario", nombre: nombre, email: email, rol: rol });
+      if (d && d.ok) { est.textContent = "✓ Usuario creado. Se le envió su clave temporal por correo."; $("auNombre").value = $("auEmail").value = ""; $("auAdmin").checked = false; cargarAdmin(); }
       else { est.className = "estado bad"; est.textContent = (d && d.error) || "No se pudo crear"; }
     } catch (e) { est.className = "estado bad"; est.textContent = "Error de conexión"; }
+  }
+  async function editarUsuarioAdmin(email, nombreActual, rolActual) {
+    const nuevo = window.prompt("Nuevo nombre para " + email + ":", nombreActual || "");
+    if (nuevo === null) return;
+    const haceAdmin = window.confirm("¿Debe ser ADMINISTRADOR?\n\nAceptar = admin · Cancelar = usuario normal");
+    try {
+      const d = await postCerebro({ accion: "editar_usuario", email: email, nombre: nuevo.trim() || nombreActual, rol: haceAdmin ? "admin" : "usuario" });
+      if (d && d.ok) { toast("Usuario actualizado", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad");
+    } catch (e) { toast("Sin conexión", "bad"); }
+  }
+  async function eliminarUsuarioAdmin(email) {
+    if (!window.confirm("¿Eliminar al usuario " + email + "? No se puede deshacer.")) return;
+    try {
+      const d = await postCerebro({ accion: "eliminar_usuario", email: email });
+      if (d && d.ok) { toast("Usuario eliminado", "ok"); cargarAdmin(); } else toast((d && d.error) || "Error", "bad");
+    } catch (e) { toast("Sin conexión", "bad"); }
   }
 
   // ===== Navegación =====

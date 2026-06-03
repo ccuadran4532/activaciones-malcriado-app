@@ -34,7 +34,8 @@ function autorizar(){
 
 // Acciones que SOLO puede ejecutar un administrador
 var SOLO_ADMIN = ["crear_usuario","listar_usuarios","aprobar_usuario","activar_usuario",
-  "get_config","set_config","get_activacion","editar_activacion","eliminar_activacion","revisar_activacion"];
+  "eliminar_usuario","editar_usuario","get_config","set_config","get_activacion",
+  "editar_activacion","eliminar_activacion","revisar_activacion"];
 
 // Rate limit con CacheService: max solicitudes por 'key' en 'win' segundos
 function rateOk_(key, max, win){
@@ -96,6 +97,8 @@ function doPost(e){
       case "listar_usuarios":    return responder_(listarUsuarios_());
       case "aprobar_usuario":    return responder_(aprobarUsuario_(data));
       case "activar_usuario":    return responder_(activarUsuario_(data));
+      case "eliminar_usuario":   return responder_(eliminarUsuario_(data));
+      case "editar_usuario":     return responder_(editarUsuario_(data));
       case "guardar_activacion": return responder_(guardarActivacion_(u, data)); // identidad real
       case "get_activacion":     return responder_(getActivacion_(data));
       case "editar_activacion":  return responder_(editarActivacion_(data));
@@ -127,7 +130,7 @@ function asegurarHojas_(ss){
   act.setFrozenRows(1);
   var u = ss.getSheetByName("Usuarios");
   if (!u){ u = ss.insertSheet("Usuarios"); }
-  u.getRange(1,1,1,8).setValues([["Nombre","Email","PassHash","Rol","Activo","Creado","Estado","Token"]]).setFontWeight("bold");
+  u.getRange(1,1,1,9).setValues([["Nombre","Email","PassHash","Rol","Activo","Creado","Estado","Token","DebeCambiar"]]).setFontWeight("bold");
   u.setFrozenRows(1);
   if (!ss.getSheetByName("Config")){
     var c = ss.insertSheet("Config");
@@ -178,6 +181,15 @@ function setConfig_(data){
 function hashPass_(p){ var s=Utilities.getUuid().replace(/-/g,"").slice(0,16); var r=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,s+p); return s+"$"+r.map(function(b){return("0"+(b&255).toString(16)).slice(-2);}).join(""); }
 function verifyPass_(p,st){ if(!st||st.indexOf("$")<0)return false; var pa=st.split("$"),s=pa[0]; var r=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,s+p); var h=r.map(function(b){return("0"+(b&255).toString(16)).slice(-2);}).join(""); return h===pa[1]; }
 
+/* ---------- Notificaciones por correo ---------- */
+function mail_(to, subj, body){ try{ if(to) MailApp.sendEmail(to, subj, body); }catch(e){} }
+function adminsEmails_(){
+  var u=uSheet_(), n=u.getLastRow(); if(n<2) return [];
+  var d=u.getRange(2,1,n-1,7).getValues(), out=[];
+  for(var i=0;i<d.length;i++) if((d[i][3]||"")==="admin" && d[i][4]!==false) out.push(d[i][1]);
+  return out;
+}
+
 /* ---------- Usuarios ---------- */
 function uSheet_(){ return planilla_().getSheetByName("Usuarios"); }
 function login_(data){
@@ -185,10 +197,10 @@ function login_(data){
   // Bootstrap: si no hay usuarios, el primero queda ADMIN aprobado.
   if (n < 2){
     var tk0 = Utilities.getUuid();
-    u.appendRow([data.email.split("@")[0], (data.email||"").toLowerCase(), hashPass_(data.pass), "admin", true, new Date(), "aprobado", tk0]);
-    return {ok:true, usuario:{nombre:data.email.split("@")[0], email:(data.email||"").toLowerCase(), rol:"admin"}, token:tk0};
+    u.appendRow([data.email.split("@")[0], (data.email||"").toLowerCase(), hashPass_(data.pass), "admin", true, new Date(), "aprobado", tk0, false]);
+    return {ok:true, usuario:{nombre:data.email.split("@")[0], email:(data.email||"").toLowerCase(), rol:"admin", debe_cambiar:false}, token:tk0};
   }
-  var datos = u.getRange(2,1,n-1,7).getValues();
+  var datos = u.getRange(2,1,n-1,9).getValues();
   var email = (data.email||"").toLowerCase();
   for (var i=0;i<datos.length;i++){
     if (String(datos[i][1]).toLowerCase() === email){
@@ -199,7 +211,7 @@ function login_(data){
       if (verifyPass_(data.pass, datos[i][2])){
         var tk = Utilities.getUuid();
         u.getRange(2+i, 8).setValue(tk);   // guarda el token de sesion
-        return {ok:true, usuario:{nombre:datos[i][0], email:email, rol:datos[i][3]||"usuario"}, token:tk};
+        return {ok:true, usuario:{nombre:datos[i][0], email:email, rol:datos[i][3]||"usuario", debe_cambiar: datos[i][8]===true}, token:tk};
       }
       return {ok:false,error:"Contrasena incorrecta"};
     }
@@ -247,26 +259,43 @@ function verificarCodigo_(data){
       if(existeEmail_(email)){ cs.deleteRow(2+i); return {ok:false,error:"Ya existe ese email"}; }
       var requiere=getConfig_().aprobar_usuarios==="si";
       var estado=requiere?"pendiente":"aprobado";
-      uSheet_().appendRow([d[i][3], email, d[i][4], "usuario", true, new Date(), estado]);
+      var nom=d[i][3];
+      uSheet_().appendRow([nom, email, d[i][4], "usuario", true, new Date(), estado, "", false]);
       cs.deleteRow(2+i);
+      // Correo de confirmacion al usuario + aviso a los administradores
+      mail_(email, "Cuenta creada - Activaciones Malcriado",
+        "Hola "+nom+",\n\nTu cuenta fue creada"+(requiere?" y quedo PENDIENTE de aprobacion del administrador. Te avisaremos cuando este lista.":". Ya puedes ingresar.")+"\n\nActivaciones - The Branican Company");
+      adminsEmails_().forEach(function(a){ mail_(a, "Nuevo usuario en Activaciones",
+        "El usuario "+nom+" ("+email+") se registro y "+(requiere?"espera tu aprobacion en el panel.":"quedo activo.")); });
       return {ok:true, pendiente:requiere};
     }
   }
   return {ok:false,error:"No hay codigo para ese email"};
 }
 // Admin crea usuario (queda aprobado directo)
+// Admin crea usuario: el sistema genera una clave TEMPORAL y se la envia por correo.
+// El usuario debe cambiarla al entrar (DebeCambiar=true). Queda aprobado.
 function crearUsuario_(data){
   var email=(data.email||"").toLowerCase();
+  if (!data.nombre || !email) return {ok:false,error:"Falta nombre o email"};
   if (existeEmail_(email)) return {ok:false,error:"Ya existe ese email"};
-  uSheet_().appendRow([data.nombre, email, hashPass_(data.pass), data.rol||"usuario", true, new Date(), "aprobado"]);
-  return {ok:true};
+  var temp = "Mal" + Math.floor(1000 + Math.random()*9000); // clave temporal
+  uSheet_().appendRow([data.nombre, email, hashPass_(temp), data.rol||"usuario", true, new Date(), "aprobado", "", true]);
+  mail_(email, "Tu acceso a Activaciones Malcriado",
+    "Hola "+data.nombre+",\n\nTe crearon una cuenta. Tu clave TEMPORAL es:  "+temp+
+    "\n\nEntra a la app y cambiala por una propia para empezar a operar.\n\nActivaciones - The Branican Company");
+  adminsEmails_().forEach(function(a){ mail_(a, "Usuario creado",
+    "Creaste al usuario "+data.nombre+" ("+email+"). Se le envio su clave temporal por correo."); });
+  return {ok:true, temp:true};
 }
 function cambiarPass_(auth, data){
   var sh=uSheet_(), n=sh.getLastRow(); if(n<2)return{ok:false,error:"No hay usuarios"};
   var d=sh.getRange(2,1,n-1,7).getValues(), email=auth.email;   // solo SU propia clave
   for(var i=0;i<d.length;i++) if(String(d[i][1]).toLowerCase()===email){
     if(!verifyPass_(data.pass_actual,d[i][2])) return{ok:false,error:"Tu contrasena actual no es correcta"};
-    sh.getRange(2+i,3).setValue(hashPass_(data.pass_nueva)); return{ok:true};
+    sh.getRange(2+i,3).setValue(hashPass_(data.pass_nueva));
+    sh.getRange(2+i,9).setValue(false);   // ya cambio su clave temporal
+    return{ok:true};
   }
   return{ok:false,error:"Usuario no encontrado"};
 }
@@ -277,9 +306,30 @@ function listarUsuarios_(){
 }
 function aprobarUsuario_(data){
   var u=uSheet_(), n=u.getLastRow(); if(n<2)return{ok:false,error:"Sin usuarios"};
+  var d=u.getRange(2,1,n-1,2).getValues(), email=(data.email||"").toLowerCase();
+  for(var i=0;i<d.length;i++) if(String(d[i][1]).toLowerCase()===email){
+    u.getRange(2+i,7).setValue(data.aprobar?"aprobado":"rechazado");
+    mail_(email, data.aprobar?"Cuenta aprobada":"Solicitud rechazada",
+      "Hola "+d[i][0]+",\n\n"+(data.aprobar?"Tu cuenta fue APROBADA. Ya puedes ingresar a Activaciones Malcriado.":"Tu solicitud de acceso fue rechazada."));
+    return{ok:true};
+  }
+  return{ok:false,error:"Usuario no encontrado"};
+}
+// Admin: eliminar usuario (lo borra de la planilla)
+function eliminarUsuario_(data){
+  var u=uSheet_(), n=u.getLastRow(); if(n<2)return{ok:false,error:"Sin usuarios"};
   var d=u.getRange(2,2,n-1,1).getValues(), email=(data.email||"").toLowerCase();
-  for(var i=0;i<d.length;i++) if(String(d[i][0]).toLowerCase()===email){
-    u.getRange(2+i,7).setValue(data.aprobar?"aprobado":"rechazado"); return{ok:true};
+  for(var i=0;i<d.length;i++) if(String(d[i][0]).toLowerCase()===email){ u.deleteRow(2+i); return{ok:true}; }
+  return{ok:false,error:"Usuario no encontrado"};
+}
+// Admin: editar nombre y/o rol de un usuario
+function editarUsuario_(data){
+  var u=uSheet_(), n=u.getLastRow(); if(n<2)return{ok:false,error:"Sin usuarios"};
+  var d=u.getRange(2,1,n-1,2).getValues(), email=(data.email||"").toLowerCase();
+  for(var i=0;i<d.length;i++) if(String(d[i][1]).toLowerCase()===email){
+    if(data.nombre) u.getRange(2+i,1).setValue(data.nombre);
+    if(data.rol)    u.getRange(2+i,4).setValue(data.rol);
+    return{ok:true};
   }
   return{ok:false,error:"Usuario no encontrado"};
 }
