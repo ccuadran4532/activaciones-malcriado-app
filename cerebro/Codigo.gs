@@ -15,7 +15,7 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Hora inicio","Hora fin","Duracion horas","Botellas inicial","Botellas sobrante",
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
   "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas",
-  "Hielo kg","Tonica L","Checklist insumos"];
+  "Hielo kg","Tonica L","Checklist insumos","Aviso 3d","Aviso dia"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -232,6 +232,31 @@ function adminsEmails_(){
   for(var i=0;i<d.length;i++) if((d[i][3]||"")==="admin" && d[i][4]!==false) out.push(d[i][1]);
   return out;
 }
+function diasEntre_(a,b){ var da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); return Math.round((db-da)/86400000); }
+// EJECUTAR CON UN ACTIVADOR DIARIO (~8:50am): avisa por correo 3 días antes y el día de la activación.
+function notificarActivaciones(){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2) return;
+  var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  var tz="GMT-4", hoy=Utilities.formatDate(new Date(),tz,"yyyy-MM-dd"), admins=adminsEmails_();
+  for(var i=0;i<d.length;i++){
+    var r=d[i];
+    if((r[23]||"")==="rechazado") continue;
+    var f = (r[1] instanceof Date) ? Utilities.formatDate(r[1],tz,"yyyy-MM-dd") : String(r[1]).slice(0,10);
+    if(!f) continue;
+    var dif=diasEntre_(hoy,f), nombre=r[2], lugar=r[3], hora=r[25], uemail=r[20];
+    var dest=[uemail].concat(admins).filter(function(x){return x;});
+    if(dif===3 && r[41]!=="si"){
+      dest.forEach(function(e){ mail_(e,"Recordatorio: activacion en 3 dias - "+nombre,
+        "En 3 dias tienes una activacion:\n\n"+nombre+"\nLugar: "+lugar+"\nFecha: "+f+(hora?(" a las "+hora):"")+"\n\nActivaciones - The Branican Company"); });
+      sh.getRange(2+i,42).setValue("si");
+    }
+    if(dif===0 && r[42]!=="si"){
+      dest.forEach(function(e){ mail_(e,"HOY: activacion "+nombre,
+        "Hoy es la activacion:\n\n"+nombre+"\nLugar: "+lugar+(hora?("\nHora inicio: "+hora):"")+"\n\nMucho exito!\nActivaciones - The Branican Company"); });
+      sh.getRange(2+i,43).setValue("si");
+    }
+  }
+}
 
 /* ---------- Usuarios ---------- */
 function uSheet_(){ return planilla_().getSheetByName("Usuarios"); }
@@ -405,7 +430,7 @@ function guardarActivacion_(auth, data){
     Number(d.granel_ini)||0, Number(d.granel_sob)||0, Number(d.botellas_rellenadas)||0,
     d.hielo_cliente?"si":"no", d.tonica_cliente?"si":"no", d.contactos_nuevos||"",
     d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
-    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ];
+    Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no" ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
