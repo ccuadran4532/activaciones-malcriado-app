@@ -91,6 +91,10 @@
       <div class="campo crece"><label>Comuna *</label><input type="text" id="f_comuna" placeholder="Ej: Providencia"></div>
     </div>
     <div class="campo"><label>Día de la activación *</label><input type="date" id="f_fecha"></div>
+    <div class="fila">
+      <div class="campo crece"><label>Hora inicio</label><input type="time" id="f_hora_ini" value="20:00"></div>
+      <div class="campo crece"><label>Hora fin</label><input type="time" id="f_hora_fin" value="23:00"></div>
+    </div>
     <div class="campo"><label>Persona de The Branican Company a cargo *</label>
       <input type="text" id="f_branican" placeholder="Nombre"></div>
     <div class="campo"><label>Quién contactó para la activación</label>
@@ -114,22 +118,44 @@
     <!-- 3. Control de Gin -->
     <div class="titulo" style="margin-top:18px;font-size:18px">Control de Gin Malcriado</div>
     <div class="seg">
-      <button class="on" id="bBotella" data-fmt="Botella">Botella</button>
+      <button class="on" id="bBotella" data-fmt="Botellas">Botellas</button>
       <button id="bGranel" data-fmt="Granel">Granel</button>
+      <button id="bAmbas" data-fmt="Ambas">Ambas</button>
     </div>
-    <div class="fila">
-      <div class="campo crece"><label>Gin inicial llevado <span class="precio-tag" id="uni1">botellas</span></label>
-        <input type="number" id="f_inicial" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
-      <div class="campo crece"><label>Gin sobrante al final <span class="precio-tag" id="uni2">botellas</span></label>
-        <input type="number" id="f_sobrante" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+    <div id="gBotellas">
+      <div class="fila">
+        <div class="campo crece"><label>Botellas inicial (700ml)</label>
+          <input type="number" id="f_bot_ini" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+        <div class="campo crece"><label>Botellas sobrante</label>
+          <input type="number" id="f_bot_sob" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+      </div>
     </div>
+    <div id="gGranel" style="display:none">
+      <div class="fila">
+        <div class="campo crece"><label>Granel inicial (litros)</label>
+          <input type="number" id="f_gra_ini" inputmode="decimal" placeholder="0,0" min="0" step="0.1"></div>
+        <div class="campo crece"><label>Granel sobrante (litros)</label>
+          <input type="number" id="f_gra_sob" inputmode="decimal" placeholder="0,0" min="0" step="0.1"></div>
+      </div>
+    </div>
+    <div class="campo"><label>Botellas rellenadas (unidad)</label>
+      <input type="number" id="f_rellenadas" inputmode="numeric" placeholder="0" min="0"></div>
 
     <!-- 4. Cortesías -->
-    <div class="campo"><label>Gin regalado / degustaciones <span class="precio-tag" id="uni3">botellas</span></label>
-      <input type="number" id="f_cortesia" inputmode="decimal" placeholder="0" min="0" step="0.5"></div>
+    <div class="campo"><label>Gin regalado / degustaciones (litros)</label>
+      <input type="number" id="f_cortesia" inputmode="decimal" placeholder="0,0" min="0" step="0.1"></div>
+
+    <div class="switch-row"><div class="info"><b>Hielo lo pone el cliente</b><span>No lo llevamos nosotros</span></div>
+      <label class="sw"><input type="checkbox" id="f_hielo_cli"><span class="track"></span><span class="dot"></span></label></div>
+    <div class="switch-row"><div class="info"><b>Tónica la pone el cliente</b><span>No la llevamos nosotros</span></div>
+      <label class="sw"><input type="checkbox" id="f_tonica_cli"><span class="track"></span><span class="dot"></span></label></div>
+
+    <div class="campo"><label>Contactos nuevos de la activación</label>
+      <input type="text" id="f_contactos_nuevos" placeholder="Nombre y teléfono (separa con coma)"></div>
 
     <!-- Resumen interno -->
     <div class="resumen">
+      <div class="r"><span>Duración de la activación</span><b id="rDuracion">0 h</b></div>
       <div class="r"><span>Gin consumido (calculado)</span><b id="rConsumido">0</b></div>
       <div class="r"><span>Costo total (pago + adicionales)</span><b id="rCosto">$0</b></div>
     </div>

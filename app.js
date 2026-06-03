@@ -139,22 +139,34 @@
   // ===== Formato Botella/Granel =====
   function setFormato(f) {
     formato = f;
-    $("bBotella").classList.toggle("on", f === "Botella");
+    $("bBotella").classList.toggle("on", f === "Botellas");
     $("bGranel").classList.toggle("on", f === "Granel");
-    const u = f === "Botella" ? "botellas" : "litros";
-    $("uni1").textContent = u; $("uni2").textContent = u; $("uni3").textContent = u;
+    $("bAmbas").classList.toggle("on", f === "Ambas");
+    $("gBotellas").style.display = (f === "Granel") ? "none" : "";
+    $("gGranel").style.display = (f === "Botellas") ? "none" : "";
   }
-
-  // ===== Cálculos (consumo y costo) =====
+  function calcHoras() {
+    const hi = $("f_hora_ini").value, hf = $("f_hora_fin").value;
+    if (!hi || !hf) return 0;
+    const a = hi.split(":").map(Number), b = hf.split(":").map(Number);
+    let min = (b[0] * 60 + b[1]) - (a[0] * 60 + a[1]);
+    if (min < 0) min += 24 * 60; // cruza medianoche
+    return Math.round((min / 60) * 100) / 100;
+  }
+  // ===== Cálculos (consumo, duración y costo) =====
   function recalcular() {
-    // Gin consumido = inicial - sobrante (nunca negativo)
-    const consumido = Math.max(soloNum($("f_inicial").value) - soloNum($("f_sobrante").value), 0);
-    // Costo total = pago al personal + gasto en adicionales
+    const botCons = Math.max(soloNum($("f_bot_ini").value) - soloNum($("f_bot_sob").value), 0);
+    const graCons = Math.max(soloNum($("f_gra_ini").value) - soloNum($("f_gra_sob").value), 0);
     const costo = soloInt($("f_pago").value) + soloInt($("f_adic").value);
-    const u = formato === "Botella" ? "botellas" : "litros";
-    $("rConsumido").textContent = consumido + " " + u;
+    const horas = calcHoras();
+    const litros = Math.round((botCons * 0.7 + graCons) * 100) / 100; // total en litros
+    const txt = [];
+    if (botCons) txt.push(botCons + " bot.");
+    if (graCons) txt.push(graCons + " L granel");
+    $("rConsumido").textContent = txt.length ? txt.join(" + ") : "0";
     $("rCosto").textContent = fmt(costo);
-    return { consumido, costo };
+    $("rDuracion").textContent = horas ? (horas + " h") : "0 h";
+    return { botCons, graCons, litros, costo, horas };
   }
   function pintarPesos(input) { const n = soloInt(input.value); input.value = n > 0 ? "$" + n.toLocaleString("es-CL") : ""; }
 
@@ -209,7 +221,7 @@
     const c = recalcular();
     $("cfNombre").textContent = $("f_nombre").value.trim();
     $("cfLugar").textContent = $("f_lugar").value.trim() + " (" + $("f_comuna").value.trim() + ")";
-    $("cfConsumo").textContent = c.consumido + (formato === "Botella" ? " botellas" : " litros");
+    $("cfConsumo").textContent = ((c.botCons ? c.botCons + " bot. " : "") + (c.graCons ? c.graCons + " L" : "")).trim() || "0";
     $("cfCosto").textContent = fmt(c.costo);
     $("confirmSheet").classList.add("show");
   }
@@ -223,10 +235,17 @@
       contacto_futuro_nombre: $("f_cfut_nom").value.trim(), contacto_futuro_dato: $("f_cfut_dato").value.trim(),
       personas_invitadas: soloInt($("f_invitados").value), personal_cantidad: soloInt($("f_personal").value),
       pago_personal: soloInt($("f_pago").value), gasto_adicionales: soloInt($("f_adic").value),
-      formato: formato, gin_inicial: soloNum($("f_inicial").value), gin_sobrante: soloNum($("f_sobrante").value),
-      gin_consumido: c.consumido, gin_cortesia: soloNum($("f_cortesia").value), costo_total: c.costo,
+      formato: formato,
+      gin_inicial: soloNum($("f_bot_ini").value), gin_sobrante: soloNum($("f_bot_sob").value),
+      gin_consumido: c.litros, gin_cortesia: soloNum($("f_cortesia").value), costo_total: c.costo,
       registrado_por: $("f_registra").value.trim(),
-      usuario_email: usuario ? usuario.email : ""
+      usuario_email: usuario ? usuario.email : "",
+      hora_inicio: $("f_hora_ini").value, hora_fin: $("f_hora_fin").value, duracion_horas: c.horas,
+      botellas_ini: soloNum($("f_bot_ini").value), botellas_sob: soloNum($("f_bot_sob").value),
+      granel_ini: soloNum($("f_gra_ini").value), granel_sob: soloNum($("f_gra_sob").value),
+      botellas_rellenadas: soloInt($("f_rellenadas").value),
+      hielo_cliente: $("f_hielo_cli").checked, tonica_cliente: $("f_tonica_cli").checked,
+      contactos_nuevos: $("f_contactos_nuevos").value.trim()
     };
     // Modo edición (admin): actualiza y vuelve, sin animación de ticket
     if (editandoId) {
@@ -259,8 +278,11 @@
   }
   function limpiarFormulario() {
     ["f_nombre", "f_lugar", "f_comuna", "f_contacto", "f_cfut_nom", "f_cfut_dato", "f_invitados",
-     "f_personal", "f_pago", "f_adic", "f_inicial", "f_sobrante", "f_cortesia"].forEach((id) => ($(id).value = ""));
-    fotos = []; renderFotos(); setFormato("Botella");
+     "f_personal", "f_pago", "f_adic", "f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob",
+     "f_rellenadas", "f_cortesia", "f_contactos_nuevos"].forEach((id) => ($(id).value = ""));
+    $("f_hielo_cli").checked = false; $("f_tonica_cli").checked = false;
+    $("f_hora_ini").value = "20:00"; $("f_hora_fin").value = "23:00";
+    fotos = []; renderFotos(); setFormato("Botellas");
     $("f_fecha").value = new Date().toISOString().slice(0, 10);
     recalcular();
   }
@@ -387,8 +409,13 @@
       $("f_invitados").value = x.personas_invitadas || ""; $("f_personal").value = x.personal_cantidad || "";
       $("f_pago").value = x.pago_personal ? ("$" + Number(x.pago_personal).toLocaleString("es-CL")) : "";
       $("f_adic").value = x.gasto_adicionales ? ("$" + Number(x.gasto_adicionales).toLocaleString("es-CL")) : "";
-      setFormato(x.formato === "Granel" ? "Granel" : "Botella");
-      $("f_inicial").value = x.gin_inicial || ""; $("f_sobrante").value = x.gin_sobrante || ""; $("f_cortesia").value = x.gin_cortesia || "";
+      setFormato(["Botellas", "Granel", "Ambas"].indexOf(x.formato) >= 0 ? x.formato : "Botellas");
+      $("f_bot_ini").value = x.botellas_ini || ""; $("f_bot_sob").value = x.botellas_sob || "";
+      $("f_gra_ini").value = x.granel_ini || ""; $("f_gra_sob").value = x.granel_sob || "";
+      $("f_rellenadas").value = x.botellas_rellenadas || ""; $("f_cortesia").value = x.gin_cortesia || "";
+      $("f_hora_ini").value = x.hora_inicio || "20:00"; $("f_hora_fin").value = x.hora_fin || "23:00";
+      $("f_hielo_cli").checked = !!x.hielo_cliente; $("f_tonica_cli").checked = !!x.tonica_cliente;
+      $("f_contactos_nuevos").value = x.contactos_nuevos || "";
       $("f_registra").value = x.registrado_por || "";
       fotos = []; renderFotos();
       editandoId = id;
@@ -558,10 +585,11 @@
     $("btnConfirmarCodigo").addEventListener("click", confirmarCodigo);
     $("btnReenviar").addEventListener("click", registrar);
     // formato
-    $("bBotella").addEventListener("click", () => { setFormato("Botella"); recalcular(); });
+    $("bBotella").addEventListener("click", () => { setFormato("Botellas"); recalcular(); });
     $("bGranel").addEventListener("click", () => { setFormato("Granel"); recalcular(); });
+    $("bAmbas").addEventListener("click", () => { setFormato("Ambas"); recalcular(); });
     // cálculos en vivo
-    ["f_inicial", "f_sobrante", "f_pago", "f_adic"].forEach((id) => $(id).addEventListener("input", recalcular));
+    ["f_bot_ini", "f_bot_sob", "f_gra_ini", "f_gra_sob", "f_pago", "f_adic", "f_hora_ini", "f_hora_fin"].forEach((id) => $(id).addEventListener("input", recalcular));
     $("f_pago").addEventListener("blur", () => pintarPesos($("f_pago")));
     $("f_adic").addEventListener("blur", () => pintarPesos($("f_adic")));
     // fotos
