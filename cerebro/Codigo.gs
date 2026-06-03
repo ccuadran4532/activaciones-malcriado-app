@@ -482,7 +482,7 @@ function historial_(u){
     var estado=r[COL_ESTADO-1]||"aprobado";
     var row={ id:r[COL_ID-1], fecha:r[1], nombre_activacion:r[2], lugar:r[3], comuna:r[4],
       gin_consumido:r[16], costo_total:r[18], registrado_por:r[19], usuario_email:r[20], estado:estado,
-      ig_ganados:(r[45]===""?null:Number(r[45])) };
+      ig_ganados:(r[45]===""?null:Number(r[45])), hora_inicio:r[25], hora_fin:r[26] };
     // Admin ve todo; usuario ve solo lo suyo
     if (esAdmin || String(r[20]).toLowerCase()===miEmail) lista.push(row);
   });

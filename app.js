@@ -697,10 +697,36 @@
     const d = new Date(f + "T00:00:00");
     let html = '<h4>' + d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long" }) + '</h4>';
     if (!items.length) html += '<div class="vacio">Sin activaciones este día.</div>';
-    else html += items.map((v) => '<div class="hcard"><div class="izq"><div class="cli">' + esc(v.nombre_activacion || "") + '</div><div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") + '</div></div><div class="der"><div class="fecha">' + esc(v.registrado_por || "") + '</div></div></div>').join("");
+    else html += items.map((v, i) => '<div class="hcard"><div class="izq"><div class="cli">' + esc(v.nombre_activacion || "") + '</div><div class="meta">' + esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") + (v.hora_inicio ? " · " + esc(v.hora_inicio) : "") + '</div></div>' +
+      '<div class="der"><button class="mini calIcs" data-i="' + i + '" style="background:#3a3a3a">📅 Mi calendario</button></div></div>').join("");
     html += '<button class="cal-add" data-f="' + f + '">➕ Agregar activación este día</button>';
     $("calDia").innerHTML = html;
     $("calDia").querySelector(".cal-add").addEventListener("click", () => nuevaEnFecha(f));
+    $("calDia").querySelectorAll(".calIcs").forEach((b) => b.addEventListener("click", () => agregarAlCalendario(items[+b.dataset.i])));
+  }
+  // Genera una cita .ics y la descarga → el teléfono ofrece guardarla en su calendario (iPhone/Android)
+  function icsFecha(fecha, hora) {
+    const p = (fecha || "").split("-"); const h = (hora || "20:00").split(":");
+    return (p[0] || "2026") + (p[1] || "01") + (p[2] || "01") + "T" + (h[0] || "20") + (h[1] || "00") + "00";
+  }
+  function agregarAlCalendario(act) {
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Malcriado//Activaciones//ES", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT", "UID:" + (act.id || Date.now()) + "@malcriado",
+      "DTSTART:" + icsFecha(act.fecha, act.hora_inicio || "20:00"),
+      "DTEND:" + icsFecha(act.fecha, act.hora_fin || "23:00"),
+      "SUMMARY:Activación: " + (act.nombre_activacion || "Gin Malcriado"),
+      "LOCATION:" + ((act.lugar || "") + (act.comuna ? ", " + act.comuna : "")),
+      "DESCRIPTION:Activación Gin Malcriado - The Branican Company",
+      "BEGIN:VALARM", "TRIGGER:-PT2H", "ACTION:DISPLAY", "DESCRIPTION:Activación Malcriado", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"
+    ].join("\r\n");
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = (act.nombre_activacion || "activacion").replace(/[^\w\s-]/g, "") + ".ics";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast("Abre el archivo descargado para guardarlo en tu calendario", "ok");
   }
   function nuevaEnFecha(f) {
     if (editandoId) salirEdicion();
