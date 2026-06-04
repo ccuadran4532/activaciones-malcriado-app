@@ -82,6 +82,7 @@
   <!-- Vista: Nueva activación -->
   <div class="scroll" id="vistaForm">
     <div class="titulo" id="tituloForm">Nueva activación <small>The Branican Company · Gin Malcriado</small></div>
+    <div class="foto-count" style="margin-bottom:8px">💡 Carga lo que sepas <b>antes</b> del evento y guarda. Después editas para sumar resultados/fotos y la <b>cierras</b> para que entre al dashboard.</div>
 
     <!-- 1. General -->
     <div class="campo"><label>Nombre de la activación *</label>
@@ -207,8 +208,8 @@
     <div class="resumen" id="vResumen" style="display:none;margin-bottom:10px"><div class="total"><span>Ingreso por ventas</span><b id="vTotal">$0</b></div></div>
 
     <!-- 5. Fotos -->
-    <div class="titulo" style="margin-top:18px;font-size:18px">Fotos del evento *</div>
-    <div class="foto-count" id="fotoCount">Sube entre 1 y 10 fotos.</div>
+    <div class="titulo" style="margin-top:18px;font-size:18px">Fotos del evento <small>(opcional · puedes subirlas después)</small></div>
+    <div class="foto-count" id="fotoCount">Opcionales: hasta 10 fotos. Puedes agregarlas después editando la activación.</div>
     <div class="fotos-grid" id="fotosGrid">
       <div class="add-foto" id="addFoto">＋</div>
     </div>
@@ -279,7 +280,7 @@
   </div>
 
   <div class="footer" id="footerForm">
-    <button class="emitir" id="btnGuardar">Confirmar y Guardar Registro</button>
+    <button class="emitir" id="btnGuardar">Guardar activación</button>
   </div>
 </div>
 
@@ -352,8 +353,8 @@
 <!-- Confirmación antes de guardar -->
 <div class="sheet" id="confirmSheet">
   <div class="card">
-    <h3>¿Confirmas el registro?</h3>
-    <p>Una vez guardado queda en el historial y <b>no se puede editar</b>.</p>
+    <h3>¿Guardar esta activación?</h3>
+    <p>Queda en tu historial como <b>en planificación</b>. Puedes editarla y subir fotos cuando quieras; al terminar el evento, <b>ciérrala</b> para que entre al dashboard.</p>
     <div class="confirm-detalle">
       <div><span>Activación</span><b id="cfNombre">—</b></div>
       <div><span>Lugar</span><b id="cfLugar">—</b></div>

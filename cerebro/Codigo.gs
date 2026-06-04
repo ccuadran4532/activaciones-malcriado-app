@@ -16,7 +16,7 @@ var CABECERAS = ["Fecha registro","Fecha activacion","Nombre activacion","Lugar"
   "Granel L inicial","Granel L sobrante","Botellas rellenadas","Hielo lo pone cliente",
   "Tonica la pone cliente","Contactos nuevos","Ventas detalle","Ingreso ventas",
   "Hielo kg","Tonica L","Checklist insumos","Aviso 3d","Aviso dia",
-  "IG inicio","IG fin","IG ganados","Trabajadores detalle"];
+  "IG inicio","IG fin","IG ganados","Trabajadores detalle","Etapa"];
 var COL_ESTADO = 24, COL_ID = 25;
 var CFG_DEFAULT = { aprobar_usuarios: "si", aprobar_activaciones: "si" };
 
@@ -40,7 +40,7 @@ function autorizar(){
 // Acciones que SOLO puede ejecutar un administrador
 var SOLO_ADMIN = ["crear_usuario","listar_usuarios","aprobar_usuario","activar_usuario",
   "eliminar_usuario","editar_usuario","get_config","set_config","get_activacion",
-  "editar_activacion","eliminar_activacion","revisar_activacion","estadisticas","rehacer_dashboard"];
+  "eliminar_activacion","revisar_activacion","estadisticas","rehacer_dashboard"];
 
 // Rate limit con CacheService: max solicitudes por 'key' en 'win' segundos
 function rateOk_(key, max, win){
@@ -106,7 +106,8 @@ function doPost(e){
       case "editar_usuario":     return responder_(editarUsuario_(data));
       case "guardar_activacion": return responder_(guardarActivacion_(u, data)); // identidad real
       case "get_activacion":     return responder_(getActivacion_(data));
-      case "editar_activacion":  return responder_(editarActivacion_(data));
+      case "editar_activacion":  return responder_(editarActivacion_(u, data));   // dueño o admin
+      case "cerrar_activacion":  return responder_(cerrarActivacion_(u, data));   // dueño o admin (abre/cierra)
       case "historial":          return responder_(historial_(u));               // todos ven todas (solo lectura)
       case "ver_activacion":     return responder_(getActivacion_(data));         // detalle solo lectura (cualquier usuario)
       case "revisar_activacion": return responder_(revisarActivacion_(data));
@@ -136,6 +137,13 @@ function asegurarHojas_(ss){
   // Cabecera siempre actualizada (incluye Estado e ID)
   act.getRange(1,1,1,CABECERAS.length).setValues([CABECERAS]).setFontWeight("bold").setBackground("#0a0a0a").setFontColor("#ffffff");
   act.setFrozenRows(1);
+  // Backfill: filas antiguas sin Etapa (col 48) quedan "cerrada" (eran registros completos)
+  var lastA = act.getLastRow();
+  if (lastA >= 2){
+    var et = act.getRange(2,48,lastA-1,1).getValues(), chg=false;
+    for (var ei=0; ei<et.length; ei++){ if (et[ei][0]==="" || et[ei][0]==null){ et[ei][0]="cerrada"; chg=true; } }
+    if (chg) act.getRange(2,48,lastA-1,1).setValues(et);
+  }
   var u = ss.getSheetByName("Usuarios");
   if (!u){ u = ss.insertSheet("Usuarios"); }
   u.getRange(1,1,1,9).setValues([["Nombre","Email","PassHash","Rol","Activo","Creado","Estado","Token","DebeCambiar"]]).setFontWeight("bold");
@@ -155,25 +163,27 @@ function crearDashboard_(ss){
   var d = ss.insertSheet("Dashboard", 0);
   d.getRange("B2").setValue("DASHBOARD · ACTIVACIONES MALCRIADO").setFontSize(16).setFontWeight("bold");
   // Columnas: J=personas, L=pago liquido, M=adicionales, Q=gin L, S=costo, AL=ingreso ventas, AM=hielo kg, AN=tonica L, X=estado
+  // AV (col 48) = Etapa. El dashboard suma SOLO las activaciones "cerrada".
   var filas = [
     ["Total de activaciones", '=COUNTA(Activaciones!C2:C)', ""],
-    ["Aprobadas", '=COUNTIF(Activaciones!X2:X,"aprobado")', ""],
-    ["Pendientes", '=COUNTIF(Activaciones!X2:X,"pendiente")', ""],
+    ["Cerradas (cuentan en el dashboard)", '=COUNTIF(Activaciones!AV2:AV,"cerrada")', ""],
+    ["En planificación (abiertas)", '=COUNTIF(Activaciones!AV2:AV,"abierta")', ""],
+    ["Aprobadas", '=COUNTIFS(Activaciones!X2:X,"aprobado",Activaciones!AV2:AV,"cerrada")', ""],
     ["", "", ""],
-    ["DINERO (CLP)", "", ""],
-    ["Ingreso por ventas (total)", '=SUM(Activaciones!AL2:AL)', "$"],
-    ["Gasto en personal (líquido)", '=SUM(Activaciones!L2:L)', "$"],
-    ["Impuesto boleta honorarios (~14,5%)", '=SUM(Activaciones!L2:L)*0.145/0.855', "$"],
-    ["Gasto en adicionales", '=SUM(Activaciones!M2:M)', "$"],
-    ["GASTO TOTAL (personal+impuesto+adic)", '=SUM(Activaciones!L2:L)/0.855+SUM(Activaciones!M2:M)', "$"],
-    ["RESULTADO (ingreso - gasto)", '=SUM(Activaciones!AL2:AL)-(SUM(Activaciones!L2:L)/0.855+SUM(Activaciones!M2:M))', "$"],
+    ["DINERO (CLP) — solo cerradas", "", ""],
+    ["Ingreso por ventas (total)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!AL2:AL)', "$"],
+    ["Gasto en personal (líquido)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!L2:L)', "$"],
+    ["Impuesto boleta honorarios (~14,5%)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!L2:L)*0.145/0.855', "$"],
+    ["Gasto en adicionales", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!M2:M)', "$"],
+    ["GASTO TOTAL (personal+impuesto+adic)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!L2:L)/0.855+SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!M2:M)', "$"],
+    ["RESULTADO (ingreso - gasto)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!AL2:AL)-(SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!L2:L)/0.855+SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!M2:M))', "$"],
     ["", "", ""],
-    ["PROMEDIOS (para ajustar lo que se lleva)", "", ""],
-    ["Personas invitadas (total)", '=SUM(Activaciones!J2:J)', ""],
-    ["Gin consumido total (L)", '=SUM(Activaciones!Q2:Q)', ""],
-    ["Gin L por persona", '=IFERROR(SUM(Activaciones!Q2:Q)/SUM(Activaciones!J2:J),0)', ""],
-    ["Hielo kg por persona", '=IFERROR(SUM(Activaciones!AM2:AM)/SUM(Activaciones!J2:J),0)', ""],
-    ["Tónica L por persona", '=IFERROR(SUM(Activaciones!AN2:AN)/SUM(Activaciones!J2:J),0)', ""]
+    ["PROMEDIOS (solo cerradas)", "", ""],
+    ["Personas invitadas (total)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!J2:J)', ""],
+    ["Gin consumido total (L)", '=SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!Q2:Q)', ""],
+    ["Gin L por persona", '=IFERROR(SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!Q2:Q)/SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!J2:J),0)', ""],
+    ["Hielo kg por persona", '=IFERROR(SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!AM2:AM)/SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!J2:J),0)', ""],
+    ["Tónica L por persona", '=IFERROR(SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!AN2:AN)/SUMIF(Activaciones!AV2:AV,"cerrada",Activaciones!J2:J),0)', ""]
   ];
   d.getRange(4,2,filas.length,2).setValues(filas.map(function(f){return [f[0],f[1]];}));
   for (var i=0;i<filas.length;i++){
@@ -194,6 +204,7 @@ function estadisticas_(){
   var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
   var personas=0,ginL=0,hielo=0,tonica=0,pago=0,adic=0,ingreso=0,total=0;
   d.forEach(function(r){
+    if ((r[47]||"cerrada")==="abierta") return; // en planificación: aún no cuenta
     total++; personas+=Number(r[9])||0; ginL+=Number(r[16])||0; pago+=Number(r[11])||0; adic+=Number(r[12])||0;
     ingreso+=Number(r[37])||0; hielo+=Number(r[38])||0; tonica+=Number(r[39])||0;
   });
@@ -468,7 +479,7 @@ function guardarActivacion_(auth, data){
     d.ventas_detalle||"", Number(d.ingreso_ventas)||0,
     Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"", "no", "no",
     (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||""),
-    d.trabajadores_detalle||"" ];
+    d.trabajadores_detalle||"", "abierta" ];
   sh.appendRow(fila);
   var r=sh.getLastRow();
   sh.getRange(r,12).setNumberFormat("$#,##0"); sh.getRange(r,13).setNumberFormat("$#,##0"); sh.getRange(r,19).setNumberFormat("$#,##0");
@@ -486,7 +497,7 @@ function historial_(u){
     var row={ id:r[COL_ID-1], fecha:r[1], nombre_activacion:r[2], lugar:r[3], comuna:r[4],
       gin_consumido:r[16], costo_total:r[18], registrado_por:r[19], usuario_email:r[20], estado:estado,
       personal_cantidad:r[10], ig_ganados:(r[45]===""?null:Number(r[45])), hora_inicio:r[25], hora_fin:r[26],
-      mio:mio };
+      etapa:(r[47]||"cerrada"), mio:mio };
     // Todos ven todas las activaciones (solo lectura). 'mio' marca las propias.
     lista.push(row);
   });
@@ -507,16 +518,19 @@ function getActivacion_(data){
       hielo_cliente:(r[33]==="si"), tonica_cliente:(r[34]==="si"), contactos_nuevos:r[35],
       ventas_detalle:r[36], ingreso_ventas:r[37],
       hielo_kg:r[38], tonica_litros:r[39], checklist:r[40],
-      ig_inicio:r[43], ig_fin:r[44], trabajadores_detalle:r[46],
+      ig_inicio:r[43], ig_fin:r[44], trabajadores_detalle:r[46], etapa:(r[47]||"cerrada"),
       estado:(r[COL_ESTADO-1]||"aprobado"), usuario_email:r[20], n_fotos:r[22], carpeta_fotos:r[21] }};
   }
   return {ok:false,error:"No encontrada"};
 }
-// Admin: edita los datos de una activacion (no toca fotos ni el ID)
-function editarActivacion_(data){
+// Edita una activacion. La puede editar su DUEÑO o un admin. No cambia ID ni Etapa.
+// Si se mandan fotos nuevas, se AGREGAN a la carpeta existente (las anteriores se conservan).
+function editarActivacion_(u, data){
   var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
-  var ids=sh.getRange(2,COL_ID,n-1,1).getValues();
-  for(var i=0;i<ids.length;i++) if(String(ids[i][0])===String(data.id)){
+  var rows=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  for(var i=0;i<rows.length;i++) if(String(rows[i][COL_ID-1])===String(data.id)){
+    var dueno = String(rows[i][20]).toLowerCase() === String((u&&u.email)||"").toLowerCase();
+    if (!(u && u.rol==="admin") && !dueno) return {ok:false, error:"Solo puedes editar tus propias activaciones"};
     var d=data.datos||{}, fila=2+i;
     sh.getRange(fila,2,1,19).setValues([[ d.fecha||"", d.nombre_activacion||"", d.lugar||"", d.comuna||"", d.persona_branican||"",
       d.quien_contacto||"", d.contacto_futuro_nombre||"", d.contacto_futuro_dato||"",
@@ -530,8 +544,35 @@ function editarActivacion_(data){
       Number(d.hielo_kg)||0, Number(d.tonica_litros)||0, d.checklist||"" ]]);
     sh.getRange(fila,44,1,3).setValues([[ (Number(d.ig_inicio)||""), (Number(d.ig_fin)||""), (Number(d.ig_ganados)||"") ]]);
     sh.getRange(fila,47).setValue(d.trabajadores_detalle||"");
+    // Fotos nuevas: se agregan a la carpeta existente
+    if (data.fotos && data.fotos.length){
+      var carpeta=null;
+      try{ var m=String(rows[i][21]).match(/folders\/([^\/?]+)/); if(m) carpeta=DriveApp.getFolderById(m[1]); }catch(e){}
+      if(!carpeta){
+        var fr=subcarpeta_(raiz_(),"Fotos");
+        var safe=String(d.nombre_activacion||"activacion").replace(/[\\/:*?"<>|]/g,"").slice(0,60).trim();
+        carpeta=fr.createFolder((d.fecha||"")+" - "+safe);
+        sh.getRange(fila,22).setValue(carpeta.getUrl());
+      }
+      var ya=Number(rows[i][22])||0, add=0;
+      data.fotos.forEach(function(f,k){ try{ var b=String(f.dataUrl||"").replace(/^data:[^,]+,/,""); carpeta.createFile(Utilities.newBlob(Utilities.base64Decode(b),"image/jpeg","foto"+(ya+k+1)+".jpg")); add++; }catch(e){} });
+      sh.getRange(fila,23).setValue(ya+add);
+    }
     sh.getRange(fila,12).setNumberFormat("$#,##0"); sh.getRange(fila,13).setNumberFormat("$#,##0"); sh.getRange(fila,19).setNumberFormat("$#,##0");
     return {ok:true};
+  }
+  return {ok:false,error:"No encontrada"};
+}
+// Cierra (o reabre) una activacion. Dueño o admin. Al cerrar, entra al dashboard/estadisticas.
+function cerrarActivacion_(u, data){
+  var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2)return{ok:false,error:"Sin activaciones"};
+  var rows=sh.getRange(2,1,n-1,CABECERAS.length).getValues();
+  for(var i=0;i<rows.length;i++) if(String(rows[i][COL_ID-1])===String(data.id)){
+    var dueno = String(rows[i][20]).toLowerCase() === String((u&&u.email)||"").toLowerCase();
+    if (!(u && u.rol==="admin") && !dueno) return {ok:false, error:"Solo puedes cerrar tus propias activaciones"};
+    var et = (data.etapa==="abierta") ? "abierta" : "cerrada";
+    sh.getRange(2+i,48).setValue(et);
+    return {ok:true, etapa:et};
   }
   return {ok:false,error:"No encontrada"};
 }

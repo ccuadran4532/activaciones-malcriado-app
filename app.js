@@ -6,7 +6,8 @@
 
   let usuario = null;       // {nombre,email,rol}
   let formato = "Botella";  // "Botella" | "Granel"
-  let fotos = [];           // [{name, dataUrl}]
+  let fotos = [];           // [{name, dataUrl}] fotos NUEVAS a subir
+  let fotosExistentes = 0;  // fotos ya subidas (al editar)
   let guardando = false;
   let editandoId = null;    // si != null, el admin está editando esa activación
 
@@ -227,7 +228,9 @@
     });
     grid.querySelectorAll(".quita").forEach((b) => b.addEventListener("click", () => { fotos.splice(+b.dataset.i, 1); renderFotos(); }));
     $("addFoto").style.display = fotos.length >= 10 ? "none" : "flex";
-    $("fotoCount").textContent = fotos.length + " / 10 fotos" + (fotos.length === 0 ? " — sube al menos 1." : "");
+    $("fotoCount").textContent = (fotosExistentes ? "Ya hay " + fotosExistentes + " foto(s) subida(s). " : "") +
+      "Nuevas: " + fotos.length + " / 10" +
+      (fotos.length === 0 && !fotosExistentes ? " — opcionales, puedes subirlas después." : "");
   }
 
   // ===== Ventas (precio editable) =====
@@ -339,11 +342,12 @@
     const req = [["f_nombre", "el nombre de la activación"], ["f_lugar", "el lugar"], ["f_comuna", "la comuna"],
                  ["f_branican", "la persona de The Branican Company"], ["f_registra", "quién registra"]];
     for (const [id, lbl] of req) if (!$(id).value.trim()) { toast("Falta " + lbl, "bad"); $(id).focus(); return false; }
-    if (!editandoId && fotos.length < 1) { toast("Sube al menos 1 foto", "bad"); return false; }
+    // Las fotos son OPCIONALES: se pueden subir después (o cuando se las envíen al usuario).
     return true;
   }
   function pedirConfirmacion() {
     if (!validar()) return;
+    if (editandoId) { guardarDefinitivo(); return; } // al editar no se pide confirmación
     const c = recalcular();
     $("cfNombre").textContent = $("f_nombre").value.trim();
     $("cfLugar").textContent = $("f_lugar").value.trim() + " (" + $("f_comuna").value.trim() + ")";
@@ -381,8 +385,8 @@
     if (editandoId) {
       const be = $("btnGuardar"); guardando = true; be.disabled = true; const t0 = be.textContent; be.textContent = "Guardando…";
       try {
-        const d = await postCerebro({ accion: "editar_activacion", id: editandoId, datos: datos });
-        if (d && d.ok) { toast("Cambios guardados", "ok"); salirEdicion(); limpiarFormulario(); cargarHistorial(); mostrarVista("historial"); }
+        const d = await postCerebro({ accion: "editar_activacion", id: editandoId, datos: datos, fotos: fotos });
+        if (d && d.ok) { toast(fotos.length ? "Cambios y fotos guardados" : "Cambios guardados", "ok"); salirEdicion(); limpiarFormulario(); cargarHistorial(); mostrarVista("historial"); }
         else { toast((d && d.error) || "Error", "bad"); be.textContent = t0; }
       } catch (e) { toast("Sin conexión", "bad"); be.textContent = t0; }
       finally { guardando = false; be.disabled = false; }
@@ -416,7 +420,7 @@
     ventas = []; renderVentas();
     $("tNombre").value = ""; $("tRut").value = ""; trabajadores = []; renderTrabajadores();
     resetChecklist();
-    fotos = []; renderFotos(); setFormato("Botellas");
+    fotos = []; fotosExistentes = 0; renderFotos(); setFormato("Botellas");
     $("f_fecha").value = new Date().toISOString().slice(0, 10);
     recalcular();
   }
@@ -438,10 +442,14 @@
     const datos = !q ? cacheHist : cacheHist.filter((v) => norm([v.nombre_activacion, v.lugar, v.comuna, v.registrado_por, v.fecha].join(" ")).includes(q));
     $("histResumen").textContent = cacheHist.length + (cacheHist.length === 1 ? " activación" : " activaciones") + (q ? " · " + datos.length + " encontradas" : "");
     $("histVacio").style.display = cacheHist.length === 0 ? "block" : "none";
-    cont.innerHTML = datos.map((v) =>
-      '<div class="hcard"><div class="izq">' +
+    const esAdmin = usuario && usuario.rol === "admin";
+    cont.innerHTML = datos.map((v) => {
+      const puedeEditar = (v.mio || esAdmin) && v.id;
+      const abierta = (v.etapa || "cerrada") === "abierta";
+      return '<div class="hcard"><div class="izq">' +
       '<div class="cli">' + esc(v.nombre_activacion || "Sin nombre") + '</div>' +
       '<div class="meta">' + (v.estado && v.estado !== "aprobado" ? '<span class="tag factura">' + esc(v.estado) + '</span>' : '') +
+      (abierta ? '<span class="tag" style="background:#b06f00;color:#fff">en planificación</span> ' : '') +
       (v.mio ? '<span class="tag" style="background:#1f6f3f;color:#fff">tuya</span> ' : '') +
       esc(v.lugar || "") + (v.comuna ? " · " + esc(v.comuna) : "") +
       ' · consumo ' + esc(String(v.gin_consumido || 0)) + ' · ' + esc(v.registrado_por || "") + '</div></div>' +
@@ -449,16 +457,20 @@
       '<div class="fecha">' + fechaCorta(v.fecha) + '</div>' +
       '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">' +
         (v.id ? '<button class="mini verAct" data-id="' + esc(v.id) + '" style="background:#2a2a2a">👁 Ver</button>' : '') +
-        (usuario && usuario.rol === "admin" && v.id ?
+        (puedeEditar ? '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️ Editar</button>' : '') +
+        (puedeEditar ? (abierta
+          ? '<button class="mini ok cerrarAct" data-id="' + esc(v.id) + '" data-e="cerrada">✅ Cerrar</button>'
+          : '<button class="mini cerrarAct" data-id="' + esc(v.id) + '" data-e="abierta" style="background:#5a3a00">🔓 Reabrir</button>') : '') +
+        (esAdmin && v.id ?
           '<button class="mini ' + (v.estado === "aprobado" ? "ok" : "bad") + ' togAct" data-id="' + esc(v.id) + '" data-s="' + (v.estado === "aprobado" ? "pendiente" : "aprobado") + '">' + (v.estado === "aprobado" ? "✓ Aprobada" : "○ Aprobar") + '</button>' +
-          '<button class="mini editAct" data-id="' + esc(v.id) + '" style="background:#3a3a3a">✏️</button>' +
           '<button class="mini bad delAct" data-id="' + esc(v.id) + '">🗑</button>' : '') +
       '</div>' +
-      '</div></div>'
-    ).join("");
+      '</div></div>';
+    }).join("");
     cont.querySelectorAll(".verAct").forEach((b) => b.addEventListener("click", () => verDetalle(b.dataset.id)));
     cont.querySelectorAll(".delAct").forEach((b) => b.addEventListener("click", () => eliminarActivacion(b.dataset.id)));
     cont.querySelectorAll(".editAct").forEach((b) => b.addEventListener("click", () => abrirEdicion(b.dataset.id)));
+    cont.querySelectorAll(".cerrarAct").forEach((b) => b.addEventListener("click", () => cerrarAct(b.dataset.id, b.dataset.e)));
     cont.querySelectorAll(".togAct").forEach((b) => b.addEventListener("click", () => revisarAct(b.dataset.id, b.dataset.s)));
     if (q && datos.length === 0) cont.innerHTML = '<div class="vacio">Sin resultados para "' + esc(filtro) + '".</div>';
   }
@@ -537,10 +549,23 @@
       else toast((d && d.error) || "Error", "bad");
     } catch (e) { toast("Sin conexión", "bad"); }
   }
-  // ===== Editar activación (admin) =====
+  // ===== Cerrar / reabrir activación (dueño o admin) =====
+  async function cerrarAct(id, etapa) {
+    const msg = etapa === "cerrada"
+      ? "¿Cerrar esta activación? Se sumará al dashboard. Después igual puedes reabrirla para corregir."
+      : "¿Reabrir esta activación para seguir editándola? Saldrá del dashboard hasta que la cierres de nuevo.";
+    if (!window.confirm(msg)) return;
+    try {
+      const d = await postCerebro({ accion: "cerrar_activacion", id: id, etapa: etapa });
+      if (d && d.ok) { toast(d.etapa === "cerrada" ? "Activación cerrada ✓ (ya está en el dashboard)" : "Reabierta para editar", "ok"); cargarHistorial(); if (vista === "admin") cargarAdmin(); }
+      else toast((d && d.error) || "Error", "bad");
+    } catch (e) { toast("Sin conexión", "bad"); }
+  }
+
+  // ===== Editar activación (dueño o admin) =====
   async function abrirEdicion(id) {
     try {
-      const d = await postCerebro({ accion: "get_activacion", id: id });
+      const d = await postCerebro({ accion: "ver_activacion", id: id });
       if (!d || !d.ok) { toast("No se pudo cargar", "bad"); return; }
       const x = d.datos;
       $("f_nombre").value = x.nombre_activacion || ""; $("f_lugar").value = x.lugar || ""; $("f_comuna").value = x.comuna || "";
@@ -562,16 +587,16 @@
       parseChecklist(x.checklist);
       $("f_ig_ini").value = x.ig_inicio || ""; $("f_ig_fin").value = x.ig_fin || "";
       $("f_registra").value = x.registrado_por || "";
-      fotos = []; renderFotos();
+      fotos = []; fotosExistentes = Number(x.n_fotos) || 0; renderFotos();
       editandoId = id;
       $("btnGuardar").textContent = "Guardar cambios";
-      $("tituloForm").innerHTML = "Editar activación <small>Modo administrador · las fotos no cambian</small>";
-      recalcular(); mostrarVista("form");
+      $("tituloForm").innerHTML = "Editar activación <small>Agrega o corrige info · sube fotos cuando quieras</small>";
+      recalcular(); mostrarVista("form"); window.scrollTo(0, 0);
     } catch (e) { toast("Sin conexión", "bad"); }
   }
   function salirEdicion() {
     editandoId = null;
-    $("btnGuardar").textContent = "Confirmar y Guardar Registro";
+    $("btnGuardar").textContent = "Guardar activación";
     $("tituloForm").innerHTML = "Nueva activación <small>The Branican Company · Gin Malcriado</small>";
   }
 
@@ -609,6 +634,7 @@
     else gin = (x.botellas_ini || 0) + " botellas";
     $("detBody").innerHTML =
       '<div class="resumen">' +
+      filaDet("Etapa", (x.etapa === "abierta") ? "En planificación (abierta)" : "Cerrada") +
       filaDet("Estado", x.estado) +
       filaDet("Fecha", x.fecha) +
       filaDet("Horario", (x.hora_inicio || "") + (x.hora_fin ? " a " + x.hora_fin : "")) +

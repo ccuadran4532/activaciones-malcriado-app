@@ -214,6 +214,9 @@ ok(vd.ok && vd.datos && vd.datos.nombre_activacion === "Bar La Mar", "ver_activa
 ok(/Ana Pérez/.test(vd.datos.trabajadores_detalle), "ver_activacion incluye equipo de trabajo");
 ok(!!vd.datos.estado, "ver_activacion incluye estado");
 
+// 4c) Recién creada → etapa abierta (en planificación)
+ok(h.lista[0].etapa === "abierta", "activación nueva nace 'abierta' (en planificación)");
+
 // 5) Editar activación
 console.log("5) Editar activación (admin)");
 const datos2 = Object.assign({}, datos, { nombre_activacion: "Bar La Mar EDITADO", costo_total: 130000, ig_ganados: 50 });
@@ -222,10 +225,17 @@ ok(r.ok, "editar_activacion ok");
 g = call({ clave: CL, accion: "get_activacion", token: TOKEN, id: ID });
 ok(g.datos.nombre_activacion === "Bar La Mar EDITADO", "edición se guardó");
 
+// 5b) Mientras está abierta NO cuenta; al cerrar entra al dashboard
+console.log("5b) Cierre de activación");
+let eAntes = call({ clave: CL, accion: "estadisticas", token: TOKEN });
+ok(eAntes.ok && eAntes.stats.total === 0, "abierta NO cuenta en estadísticas");
+r = call({ clave: CL, accion: "cerrar_activacion", token: TOKEN, id: ID, etapa: "cerrada" });
+ok(r.ok && r.etapa === "cerrada", "cerrar_activacion ok");
+
 // 6) Estadísticas
 console.log("6) Estadísticas (dinero y promedios)");
 let e = call({ clave: CL, accion: "estadisticas", token: TOKEN });
-ok(e.ok && e.stats.total === 1, "stats total=1");
+ok(e.ok && e.stats.total === 1, "stats total=1 (ya cerrada)");
 ok(e.stats.ingreso === 31000, "ingreso=31000");
 ok(e.stats.impuesto === Math.round(105000 * 0.145 / 0.855), "impuesto honorarios correcto (" + e.stats.impuesto + ")");
 ok(e.stats.gastoTotal === Math.round(105000 / 0.855 + 20000), "gasto total con honorarios correcto");
@@ -280,9 +290,29 @@ ok(hDiego.lista[0].mio === false, "para diego esa activación NO es suya (mio=fa
 // Diego puede VER el detalle (solo lectura) de la activación ajena
 const vDiego = call({ clave: CL, accion: "ver_activacion", token: TOKEN_DIEGO, id: ID });
 ok(vDiego.ok && vDiego.datos.nombre_activacion === "Bar La Mar EDITADO", "diego ve el detalle (solo lectura)");
-// Pero NO puede editarla (acción de admin)
+// Pero NO puede editar NI cerrar lo ajeno
 const eDiego = call({ clave: CL, accion: "editar_activacion", token: TOKEN_DIEGO, id: ID, datos: datos });
-ok(eDiego.ok === false && /autorizado/i.test(eDiego.error), "diego no puede editar lo ajeno");
+ok(eDiego.ok === false && /propias/i.test(eDiego.error), "diego no puede editar lo ajeno");
+const cDiego = call({ clave: CL, accion: "cerrar_activacion", token: TOKEN_DIEGO, id: ID, etapa: "abierta" });
+ok(cDiego.ok === false && /propias/i.test(cDiego.error), "diego no puede cerrar/reabrir lo ajeno");
+
+// 12) Dueño crea, edita y cierra SU propia activación; fotos opcionales
+console.log("12) Dueño edita y cierra lo suyo (fotos opcionales)");
+let rD = call({ clave: CL, accion: "guardar_activacion", token: TOKEN_DIEGO, datos: {
+  nombre_activacion: "Evento Diego", lugar: "Centro", comuna: "Santiago", fecha: "2026-07-01",
+  persona_branican: "Diego", personal_cantidad: 1, pago_personal: 30000, formato: "Botellas",
+  botellas_ini: 2, costo_total: 30000 }, fotos: [] });
+ok(rD.ok === true, "diego guarda su activación SIN fotos (opcionales)");
+let hD = call({ clave: CL, accion: "historial", token: TOKEN_DIEGO });
+let mia = hD.lista.find((x) => x.nombre_activacion === "Evento Diego");
+ok(mia && mia.mio === true && mia.etapa === "abierta", "su activación sale 'tuya' y 'abierta'");
+let reD = call({ clave: CL, accion: "editar_activacion", token: TOKEN_DIEGO, id: mia.id, datos: {
+  nombre_activacion: "Evento Diego", lugar: "Centro", comuna: "Santiago", fecha: "2026-07-01",
+  persona_branican: "Diego", personal_cantidad: 1, pago_personal: 30000, formato: "Botellas",
+  botellas_ini: 2, botellas_sob: 1, costo_total: 30000 } });
+ok(reD.ok === true, "diego edita SU propia activación");
+let rcD = call({ clave: CL, accion: "cerrar_activacion", token: TOKEN_DIEGO, id: mia.id, etapa: "cerrada" });
+ok(rcD.ok === true && rcD.etapa === "cerrada", "diego cierra SU propia activación");
 
 console.log("\n=== RESULTADO: " + PASS + " OK, " + FAIL + " fallas ===\n");
 process.exit(FAIL ? 1 : 0);
