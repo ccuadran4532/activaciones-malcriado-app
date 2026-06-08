@@ -1,5 +1,5 @@
 // Service worker simple: cachea la app para que abra rápido y offline.
-const CACHE = "activaciones-v22";
+const CACHE = "activaciones-v23";
 const ASSETS = [
   ".", "index.html", "styles.css", "app.js", "config.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",

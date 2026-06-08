@@ -299,7 +299,7 @@
       { n: "Cítricos / deshidratados", u: "u" }, { n: "Botellas 250ml", u: "u" }
     ],
     "Activos": [
-      { n: "Toalla nova", u: "u" }, { n: "Alcohol para limpiar", u: "u" }, { n: "Mantel", u: "u" }, { n: "Perchero", u: "u" },
+      { n: "Toalla nova", u: "u" }, { n: "Alcohol para limpiar", u: "u" }, { n: "Mantel", u: "u" }, { n: "Pechera", u: "u" },
       { n: "Poleras", u: "u" }, { n: "Jockey", u: "u" }, { n: "Libro", u: "u" }, { n: "Máquina Mercado Pago", u: "u" },
       { n: "Cargador Mercado Pago", u: "u" }, { n: "Papel máquina MP", u: "u" }, { n: "Pizarra digital + lápices", u: "u" },
       { n: "Alargador", u: "u" }, { n: "Mesa", u: "u" }, { n: "Letrero", u: "u" }, { n: "Hielera", u: "u" }, { n: "Poruña para hielo", u: "u" },
