@@ -158,6 +158,7 @@ function asegurarHojas_(ss){
     cg.getRange(1,1,1,5).setValues([["Email","Codigo","Expira","Nombre","PassHash"]]).setFontWeight("bold");
   }
   if (!ss.getSheetByName("Dashboard")) crearDashboard_(ss);
+  if (!ss.getSheetByName("Desglose")) crearDesglose_(ss);
 }
 function crearDashboard_(ss){
   var d = ss.insertSheet("Dashboard", 0);
@@ -192,11 +193,73 @@ function crearDashboard_(ss){
     if (filas[i][1]==="" && filas[i][0]!=="") d.getRange(4+i,2).setFontColor("#E1251B"); // subtitulos
   }
   d.setColumnWidth(2,300); d.setColumnWidth(3,170);
+
+  // ---- Acumulado por AÑO y por SEMESTRE (solo activaciones CERRADAS) ----
+  var acts = leerActivaciones_(ss).filter(function(a){ return a.etapa==="cerrada"; });
+  var porAnio={}, porSem={};
+  acts.forEach(function(a){
+    var y=(a.fecha||"").slice(0,4); if(!y) return;
+    var mes=parseInt((a.fecha||"").slice(5,7),10)||0, s=(mes<=6?"S1":"S2");
+    var ks=y+" "+s;
+    if(!porAnio[y]) porAnio[y]={n:0,ing:0,gas:0};
+    porAnio[y].n++; porAnio[y].ing+=a.ingreso; porAnio[y].gas+=a.gasto;
+    if(!porSem[ks]) porSem[ks]={n:0,ing:0,gas:0};
+    porSem[ks].n++; porSem[ks].ing+=a.ingreso; porSem[ks].gas+=a.gasto;
+  });
+  var row = 4 + filas.length + 2;
+  row = escribirTabla_(d, row, "RESULTADOS POR AÑO", porAnio, "AÑO") + 1;
+  row = escribirTabla_(d, row, "RESULTADOS POR SEMESTRE", porSem, "SEMESTRE");
+  d.setColumnWidth(4,120); d.setColumnWidth(5,120); d.setColumnWidth(6,130);
+}
+// Lee todas las activaciones como objetos (con ingreso/gasto/resultado calculados)
+function leerActivaciones_(ss){
+  var sh=ss.getSheetByName("Activaciones"), n=sh.getLastRow(); if(n<2) return [];
+  var d=sh.getRange(2,1,n-1,CABECERAS.length).getValues(), out=[];
+  d.forEach(function(r){
+    var fecha=(r[1] instanceof Date)?Utilities.formatDate(r[1],"GMT-4","yyyy-MM-dd"):String(r[1]).slice(0,10);
+    var pago=Number(r[11])||0, adic=Number(r[12])||0, ingreso=Number(r[37])||0, gasto=pago/0.855+adic;
+    out.push({ fecha:fecha, nombre:r[2], lugar:r[3], comuna:r[4], usuario:r[19], email:r[20],
+      estado:(r[23]||"aprobado"), etapa:(r[47]||"cerrada"),
+      ingreso:ingreso, gasto:gasto, resultado:ingreso-gasto });
+  });
+  return out;
+}
+// Escribe una tabla AÑO/SEMESTRE con totales. Devuelve la fila siguiente libre.
+function escribirTabla_(sh, row, titulo, mapa, etiqueta){
+  sh.getRange(row,2).setValue(titulo).setFontWeight("bold").setFontColor("#E1251B"); row++;
+  sh.getRange(row,2,1,5).setValues([[etiqueta,"Activaciones","Ingreso","Gasto","Resultado"]]).setFontWeight("bold"); row++;
+  var keys=Object.keys(mapa).sort(), tot={n:0,ing:0,gas:0};
+  if(!keys.length){ sh.getRange(row,2).setValue("(aún sin activaciones cerradas)"); return row+1; }
+  for(var i=0;i<keys.length;i++){
+    var m=mapa[keys[i]]; tot.n+=m.n; tot.ing+=m.ing; tot.gas+=m.gas;
+    sh.getRange(row,2,1,5).setValues([[keys[i], m.n, Math.round(m.ing), Math.round(m.gas), Math.round(m.ing-m.gas)]]);
+    sh.getRange(row,4,1,3).setNumberFormat("$#,##0"); row++;
+  }
+  sh.getRange(row,2,1,5).setValues([["TOTAL", tot.n, Math.round(tot.ing), Math.round(tot.gas), Math.round(tot.ing-tot.gas)]]);
+  sh.getRange(row,2,1,5).setFontWeight("bold"); sh.getRange(row,4,1,3).setNumberFormat("$#,##0");
+  return row+1;
+}
+// Pestaña Desglose: una fila por activación, agrupada por usuario (para ver lo de cada uno)
+function crearDesglose_(ss){
+  var d=ss.getSheetByName("Desglose"); if(d) ss.deleteSheet(d);
+  d=ss.insertSheet("Desglose");
+  d.getRange("A1").setValue("DESGLOSE POR ACTIVACIÓN (por usuario)").setFontSize(14).setFontWeight("bold");
+  var head=["Fecha","Activación","Usuario","Lugar","Comuna","Etapa","Estado","Ingreso","Gasto","Resultado"];
+  d.getRange(3,1,1,head.length).setValues([head]).setFontWeight("bold").setBackground("#0a0a0a").setFontColor("#ffffff");
+  d.setFrozenRows(3);
+  var acts=leerActivaciones_(ss);
+  acts.sort(function(a,b){ var u=String(a.usuario||"").localeCompare(String(b.usuario||"")); return u!==0?u:String(a.fecha||"").localeCompare(String(b.fecha||"")); });
+  if(acts.length){
+    var vals=acts.map(function(a){ return [a.fecha,a.nombre,a.usuario,a.lugar,a.comuna,a.etapa,a.estado,Math.round(a.ingreso),Math.round(a.gasto),Math.round(a.resultado)]; });
+    d.getRange(4,1,vals.length,head.length).setValues(vals);
+    d.getRange(4,8,vals.length,3).setNumberFormat("$#,##0");
+  } else { d.getRange(4,1).setValue("(aún no hay activaciones)"); }
+  d.setColumnWidth(1,90); d.setColumnWidth(2,220); d.setColumnWidth(3,160); d.setColumnWidth(4,150); d.setColumnWidth(5,130);
 }
 
 /* ---------- Dashboard / estadísticas ---------- */
 function rehacerDashboard_(){
-  var ss=planilla_(); var d=ss.getSheetByName("Dashboard"); if(d) ss.deleteSheet(d); crearDashboard_(ss); return {ok:true};
+  var ss=planilla_(); var d=ss.getSheetByName("Dashboard"); if(d) ss.deleteSheet(d); crearDashboard_(ss); crearDesglose_(ss); return {ok:true};
 }
 function estadisticas_(){
   var sh=planilla_().getSheetByName("Activaciones"), n=sh.getLastRow();

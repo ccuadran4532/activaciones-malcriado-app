@@ -314,5 +314,19 @@ ok(reD.ok === true, "diego edita SU propia activación");
 let rcD = call({ clave: CL, accion: "cerrar_activacion", token: TOKEN_DIEGO, id: mia.id, etapa: "cerrada" });
 ok(rcD.ok === true && rcD.etapa === "cerrada", "diego cierra SU propia activación");
 
+// 13) Dashboard + Desglose se reconstruyen sin error y con desglose por activación
+console.log("13) Dashboard y Desglose");
+r = call({ clave: CL, accion: "rehacer_dashboard", token: TOKEN });
+ok(r.ok === true, "rehacer_dashboard ok (Dashboard + Desglose)");
+const ssTest = sandbox._lastSS;
+const desg = ssTest.getSheetByName("Desglose");
+ok(!!desg, "existe la pestaña Desglose");
+ok(desg._data[2] && desg._data[2][0] === "Fecha", "Desglose tiene cabecera en fila 3");
+ok(desg._data.length >= 4, "Desglose tiene al menos una activación listada");
+const dash = ssTest.getSheetByName("Dashboard");
+const dashTxt = JSON.stringify(dash._data);
+ok(/RESULTADOS POR AÑO/.test(dashTxt), "Dashboard incluye 'RESULTADOS POR AÑO'");
+ok(/RESULTADOS POR SEMESTRE/.test(dashTxt), "Dashboard incluye 'RESULTADOS POR SEMESTRE'");
+
 console.log("\n=== RESULTADO: " + PASS + " OK, " + FAIL + " fallas ===\n");
 process.exit(FAIL ? 1 : 0);
